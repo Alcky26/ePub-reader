@@ -1,13 +1,8 @@
-<!DOCTYPE html>
-<html lang="it">
+<!DOCTYPE html><html lang="it">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EPUB Reader PRO</title>
-
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-
-<style>
+<title>EPUB Reader PRO</title><script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script><style>
 body {
   margin:0;
   font-family:system-ui;
@@ -20,8 +15,8 @@ header {
   background:#1a1a1a;
   display:flex;
   gap:8px;
-  align-items:center;
   flex-wrap:wrap;
+  align-items:center;
 }
 
 button, input {
@@ -46,48 +41,67 @@ button { cursor:pointer; }
   color:#ccc;
 }
 
+/* NAV BIG BUTTONS */
+.nav-bar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px 15px;
+  background:#111;
+  border-top:1px solid #222;
+  border-bottom:1px solid #222;
+}
+
+.nav-bar button {
+  font-size:22px;
+  padding:14px 18px;
+  min-width:80px;
+}
+
 #content {
   padding:20px;
   max-width:850px;
   margin:auto;
   line-height:1.8;
   font-size:18px;
+  min-height:60vh;
 }
 
+/* INDEX MODAL */
 #index {
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  max-height:60vh;
+  overflow:auto;
+  background:#111;
+  border-top:2px solid #333;
+  display:none;
   padding:10px;
-  border-top:1px solid #333;
 }
 
 #index button {
   width:100%;
   margin:4px 0;
   text-align:left;
+  background:#222;
 }
-</style>
-</head>
-
-<body>
-
-<header>
+</style></head><body><header>
 <input type="file" id="fileInput" accept=".epub">
-
-<button onclick="prev()"></button>
-<button onclick="next()"></button>
-<button onclick="toggleIndex()"> Indice</button>
-<button onclick="loadBook()"> Riapri libro</button>
-<button onclick="resetBook()"> Reset</button>
-</header>
-
-<div id="status">Pronto.</div>
-<div id="navInfo"></div>
-
-<main>
+<button onclick="loadBook()">📂 Riapri libro</button>
+<button onclick="resetBook()">🗑 Reset</button>
+<button onclick="toggleIndex()">📚 Indice</button>
+</header><div id="status">Pronto.</div>
+<div id="navInfo"></div><!-- NAV TOP --><div class="nav-bar">
+  <button onclick="prev()">◀</button>
+  <button onclick="next()">▶</button>
+</div><main>
 <article id="content">Carica un EPUB</article>
-<div id="index" style="display:none;"></div>
-</main>
-
-<script>
+</main><!-- NAV BOTTOM --><div class="nav-bar">
+  <button onclick="prev()">◀</button>
+  <button onclick="next()">▶</button>
+</div><div id="index"></div><script>
 
 let db;
 let chapters = [];
@@ -136,39 +150,41 @@ function dbClear(){
   });
 }
 
-// ---------------- STATUS ----------------
-function setStatus(msg){
-  document.getElementById("status").innerText = msg;
-}
-
 // ---------------- INIT ----------------
 (async()=>{
   await openDB();
-  setStatus("Sistema pronto");
 
   const saved = await dbGet("chapters");
   if(saved){
     chapters = saved;
     const last = await dbGet("last") || 0;
     setStatus("Libro caricato da memoria");
+    renderIndex();
     show(last);
+  } else {
+    setStatus("Pronto.");
   }
 })();
 
-// ---------------- EPUB ----------------
+function setStatus(msg){
+  document.getElementById("status").innerText = msg;
+}
+
+// ---------------- FILE ----------------
 document.getElementById("fileInput").addEventListener("change", async (e)=>{
   const file = e.target.files[0];
   if(!file) return;
 
-  setStatus(" Lettura EPUB...");
+  setStatus("📥 Lettura EPUB...");
 
   const buffer = await file.arrayBuffer();
   process(buffer);
 });
 
+// ---------------- EPUB ----------------
 async function process(buffer){
 
-  setStatus(" Parsing EPUB...");
+  setStatus("📦 Parsing EPUB...");
 
   const zip = await JSZip.loadAsync(buffer);
   const parser = new DOMParser();
@@ -191,11 +207,11 @@ async function process(buffer){
     spine.push(i.getAttribute("idref"));
   });
 
-  const base = rootfile.substring(0, rootfile.lastIndexOf("/") + 1);
+  const base = rootfile.substring(0, rootfile.lastIndexOf('/')+1);
 
   chapters = [];
 
-  setStatus(" Generazione capitoli...");
+  setStatus("📚 Generazione capitoli...");
 
   for(const id of spine){
     const path = base + manifest[id];
@@ -211,7 +227,7 @@ async function process(buffer){
   await dbSet("chapters", chapters);
   await dbSet("last", 0);
 
-  setStatus(" Libro caricato ("+chapters.length+" capitoli)");
+  setStatus("✅ Libro caricato ("+chapters.length+")");
 
   renderIndex();
   show(0);
@@ -225,18 +241,17 @@ function show(i){
   updateNav();
 }
 
-// ---------------- NAV ----------------
+function updateNav(){
+  document.getElementById("navInfo").innerText =
+    "Capitolo " + (current+1) + " / " + chapters.length;
+}
+
 function prev(){
-  if(current > 0) show(current - 1);
+  if(current > 0) show(current-1);
 }
 
 function next(){
-  if(current < chapters.length - 1) show(current + 1);
-}
-
-function updateNav(){
-  document.getElementById("navInfo").innerText =
-    "Capitolo " + (current + 1) + " / " + chapters.length;
+  if(current < chapters.length-1) show(current+1);
 }
 
 // ---------------- INDEX ----------------
@@ -247,7 +262,7 @@ function renderIndex(){
   chapters.forEach((_,i)=>{
     const btn = document.createElement("button");
     btn.innerText = "Capitolo " + (i+1);
-    btn.onclick = ()=> {
+    btn.onclick = ()=>{
       show(i);
       toggleIndex();
     };
@@ -257,7 +272,7 @@ function renderIndex(){
 
 function toggleIndex(){
   const el = document.getElementById("index");
-  el.style.display = el.style.display === "none" ? "block" : "none";
+  el.style.display = (el.style.display === "block") ? "none" : "block";
 }
 
 // ---------------- LOAD / RESET ----------------
@@ -268,27 +283,23 @@ async function loadBook(){
   if(!saved) return setStatus("Nessun libro salvato");
 
   chapters = saved;
-  setStatus("Libro caricato da memoria");
-
   renderIndex();
   show(last || 0);
+  setStatus("Libro caricato");
 }
 
 async function resetBook(){
   await dbClear();
-  chapters = [];
-  document.getElementById("content").innerHTML = "Reset completato";
-  setStatus("Memoria pulita");
-  document.getElementById("navInfo").innerText = "";
+  chapters=[];
+  document.getElementById("content").innerHTML="Reset";
+  setStatus("Pulito");
 }
 
-// ---------------- KEY NAV ----------------
+// ---------------- KEYBOARD ----------------
 document.addEventListener("keydown",(e)=>{
   if(e.key==="ArrowRight") next();
   if(e.key==="ArrowLeft") prev();
 });
 
-</script>
-
-</body>
+</script></body>
 </html>
