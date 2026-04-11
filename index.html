@@ -211,13 +211,8 @@ function dbClear(){
     const last = await dbGet("last") || 0;
     renderIndex();
     show(last);
-    setStatus("Libro caricato");
   }
 })();
-
-function setStatus(msg){
-  document.getElementById("status").innerText = msg;
-}
 
 // ---------------- TEXT ----------------
 function extractText(html){
@@ -229,20 +224,8 @@ function countWords(text){
   return text.trim().split(/\s+/).filter(w=>w).length;
 }
 
-// ---------------- FILE ----------------
-document.getElementById("fileInput").addEventListener("change", async e=>{
-  const file = e.target.files[0];
-  if(!file) return;
-
-  setStatus("📥 Lettura EPUB...");
-  const buffer = await file.arrayBuffer();
-
-  process(buffer);
-});
-
 // ---------------- IMAGE FIX ----------------
 async function fixImages(html, zip, base){
-
   const doc = new DOMParser().parseFromString(html,"text/html");
   const imgs = doc.querySelectorAll("img");
 
@@ -274,9 +257,15 @@ async function fixImages(html, zip, base){
 }
 
 // ---------------- EPUB ----------------
-async function process(buffer){
+document.getElementById("fileInput").addEventListener("change", async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
 
-  setStatus("📦 Parsing EPUB...");
+  const buffer = await file.arrayBuffer();
+  process(buffer);
+});
+
+async function process(buffer){
 
   const zip = await JSZip.loadAsync(buffer);
   const parser = new DOMParser();
@@ -299,10 +288,28 @@ async function process(buffer){
 
   const base = rootfile.substring(0, rootfile.lastIndexOf("/") + 1);
 
+  // ---- LOAD CSS EPUB ----
+  let styles = "";
+  const cssPromises = [];
+
+  opf.querySelectorAll("manifest item").forEach(i=>{
+    const href = i.getAttribute("href");
+    if(href && href.endsWith(".css")){
+      const file = zip.file(base + href);
+      if(file){
+        cssPromises.push(
+          file.async("text").then(css=>{
+            styles += css;
+          })
+        );
+      }
+    }
+  });
+
+  await Promise.all(cssPromises);
+
   chapters = [];
   chapterWords = [];
-
-  setStatus("📚 Generazione capitoli...");
 
   for(const id of spine){
 
@@ -312,14 +319,21 @@ async function process(buffer){
     const html = await file.async("text");
     const fixed = await fixImages(html, zip, base);
 
-    const clean = new DOMParser()
-      .parseFromString(fixed,"text/html")
-      .body.innerHTML;
+    const doc = new DOMParser().parseFromString(fixed,"application/xhtml+xml");
 
-    if(clean.trim()){
-      chapters.push(clean);
+    const styledHTML = `
+      <style>
+      ${styles}
+      body { background:transparent; color:#eaeaea; }
+      img { max-width:100%; height:auto; }
+      </style>
+      ${doc.body.innerHTML}
+    `;
 
-      const text = extractText(clean);
+    if(styledHTML.trim()){
+      chapters.push(styledHTML);
+
+      const text = extractText(styledHTML);
       chapterWords.push(countWords(text));
     }
   }
@@ -330,8 +344,6 @@ async function process(buffer){
   await dbSet("chapterWords", chapterWords);
   await dbSet("totalWords", totalWords);
   await dbSet("last", 0);
-
-  setStatus("✅ Libro pronto ("+chapters.length+")");
 
   renderIndex();
   show(0);
@@ -412,7 +424,7 @@ async function loadBook(){
   const savedWords = await dbGet("chapterWords");
   const savedTotal = await dbGet("totalWords");
 
-  if(!saved) return setStatus("Nessun libro");
+  if(!saved) return;
 
   chapters = saved;
   chapterWords = savedWords || [];
@@ -426,8 +438,9 @@ async function resetBook(){
   await dbClear();
   chapters=[];
   document.getElementById("content").innerHTML="Reset";
-  setStatus("Pulito");
 }
+
+openDB();
 
 </script>
 
