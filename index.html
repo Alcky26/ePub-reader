@@ -15,7 +15,6 @@ body {
   font-family:system-ui;
 }
 
-/* HEADER */
 header {
   display:flex;
   gap:8px;
@@ -32,9 +31,218 @@ button, input {
   color:white;
 }
 
-/* CONTROLS */
+#status {
+  padding:8px;
+  font-size:14px;
+  color:#aaa;
+}
+
 #controls {
   display:flex;
+  justify-content:space-between;
+  padding:10px;
+  background:#111;
+}
+
+#stats {
+  font-size:14px;
+  color:#8ab4f8;
+}
+
+#viewer {
+  height:70vh;
+  width:100%;
+}
+
+.nav {
+  display:flex;
+  justify-content:space-between;
+  padding:10px;
+  background:#111;
+}
+
+.nav button {
+  font-size:20px;
+  padding:14px;
+  min-width:80px;
+}
+
+#index {
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  max-height:60vh;
+  overflow:auto;
+  background:#111;
+  display:none;
+  padding:10px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<input type="file" id="fileInput" accept=".epub">
+<button onclick="toggleIndex()">📚</button>
+</header>
+
+<div id="status">Pronto</div>
+
+<div id="controls">
+  <div id="stats">0%</div>
+  <div>
+    <button onclick="changeFont(-1)">A-</button>
+    <button onclick="changeFont(1)">A+</button>
+  </div>
+</div>
+
+<div class="nav">
+<button onclick="prev()">⬅️</button>
+<button onclick="next()">➡️</button>
+</div>
+
+<div id="viewer"></div>
+
+<div class="nav">
+<button onclick="prev()">⬅️</button>
+<button onclick="next()">➡️</button>
+</div>
+
+<div id="index"></div>
+
+<script>
+
+let book, rendition;
+let totalWords = 0;
+let currentFont = 100;
+
+// ---------------- FILE LOAD ----------------
+document.getElementById("fileInput").addEventListener("change", async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+
+  try{
+    setStatus("📥 Caricamento EPUB...");
+
+    const url = URL.createObjectURL(file);
+
+    book = ePub(url);
+
+    rendition = book.renderTo("viewer", {
+      width: "100%",
+      height: "100%",
+      spread: "none"
+    });
+
+    await book.ready;
+
+    setStatus("📍 Generazione posizioni...");
+    await book.locations.generate(1500);
+
+    setStatus("📊 Conteggio parole...");
+    await calculateWords();
+
+    setStatus("📖 Rendering...");
+    await rendition.display();
+
+    // restore posizione
+    const saved = localStorage.getItem("epub-location");
+    if(saved){
+      rendition.display(saved);
+    }
+
+    rendition.on("relocated", loc=>{
+      localStorage.setItem("epub-location", loc.start.cfi);
+      updateProgress(loc.start.cfi);
+    });
+
+    await generateTOC();
+
+    setStatus("✅ Pronto");
+
+  }catch(err){
+    console.error(err);
+    setStatus("❌ Errore: " + err.message);
+  }
+});
+
+// ---------------- STATUS ----------------
+function setStatus(msg){
+  document.getElementById("status").innerText = msg;
+}
+
+// ---------------- NAV ----------------
+function next(){ if(rendition) rendition.next(); }
+function prev(){ if(rendition) rendition.prev(); }
+
+// ---------------- FONT ----------------
+function changeFont(v){
+  if(!rendition) return;
+  currentFont += v * 10;
+  rendition.themes.fontSize(currentFont + "%");
+}
+
+// ---------------- WORD COUNT ----------------
+async function calculateWords(){
+
+  const spine = book.spine.spineItems;
+  totalWords = 0;
+
+  for(let item of spine){
+    try{
+      const doc = await item.load(book.load.bind(book));
+      const text = doc.documentElement.textContent || "";
+      const words = text.trim().split(/\s+/).filter(w=>w).length;
+
+      totalWords += words;
+      item.unload();
+
+    }catch(e){
+      console.warn("Errore capitolo", e);
+    }
+  }
+}
+
+// ---------------- PROGRESS ----------------
+function updateProgress(cfi){
+
+  const percent = book.locations.percentageFromCfi(cfi) || 0;
+  const readWords = Math.floor(totalWords * percent);
+
+  document.getElementById("stats").innerText =
+    `${(percent*100).toFixed(1)}% • ${readWords}/${totalWords}`;
+}
+
+// ---------------- INDEX ----------------
+async function generateTOC(){
+  const toc = await book.loaded.navigation;
+  const el = document.getElementById("index");
+  el.innerHTML = "";
+
+  toc.toc.forEach(ch=>{
+    const b = document.createElement("button");
+    b.innerText = ch.label;
+
+    b.onclick = ()=>{
+      rendition.display(ch.href);
+      toggleIndex();
+    };
+
+    el.appendChild(b);
+  });
+}
+
+function toggleIndex(){
+  const el = document.getElementById("index");
+  el.style.display = el.style.display === "block" ? "none" : "block";
+}
+
+</script>
+
+</body>
+</html>  display:flex;
   justify-content:space-between;
   padding:10px;
   background:#111;
