@@ -1,0 +1,1 @@
+<!-- manifest.json -->{ "name": "EPUB Reader", "short_name": "Reader", "start_url": "index.html", "display": "standalone", "background_color": "#0f0f0f", "theme_color": "#0f0f0f" }

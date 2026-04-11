@@ -1,0 +1,124 @@
+<!DOCTYPE html><html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EPUB Reader App (PWA)</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script><link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f0f0f"><style>
+body { margin:0; font-family:system-ui; background:#0f0f0f; color:#eaeaea; }
+header { padding:10px; background:#1a1a1a; display:flex; gap:10px; }
+button,input { padding:10px; border:none; border-radius:6px; }
+button { background:#333; color:white; }
+#content { padding:20px; max-width:800px; margin:auto; line-height:1.8; font-size:18px; }
+</style></head>
+<body><header>
+<input type="file" id="fileInput" accept=".epub">
+<button onclick="loadBook()">Carica libro salvato</button>
+<button onclick="clearBook()">Reset</button>
+</header><main>
+<article id="content">Carica un EPUB</article>
+</main><script>
+let chapters = [];
+let current = 0;
+
+// REGISTER SERVICE WORKER
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js');
+}
+
+// SAVE EPUB
+
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+
+  const buffer = await file.arrayBuffer();
+
+  // salva come unico libro
+  localStorage.setItem('epub', JSON.stringify(Array.from(new Uint8Array(buffer))));
+
+  process(buffer);
+});
+
+function clearBook(){
+  localStorage.removeItem('epub');
+  localStorage.removeItem('chapters');
+  location.reload();
+}
+
+function loadBook(){
+  const saved = localStorage.getItem('epub');
+  if(!saved) return alert('Nessun libro salvato');
+
+  const bytes = new Uint8Array(JSON.parse(saved));
+  process(bytes.buffer);
+}
+
+async function process(buffer){
+  const zip = await JSZip.loadAsync(buffer);
+  const parser = new DOMParser();
+
+  const containerXml = await zip.file("META-INF/container.xml").async("text");
+  const containerDoc = parser.parseFromString(containerXml, "application/xml");
+  const rootfilePath = containerDoc.querySelector("rootfile").getAttribute("full-path");
+
+  const opfText = await zip.file(rootfilePath).async("text");
+  const opfDoc = parser.parseFromString(opfText, "application/xml");
+
+  const manifest = {};
+  opfDoc.querySelectorAll("manifest item").forEach(item=>{
+    manifest[item.getAttribute("id")] = item.getAttribute("href");
+  });
+
+  const spine = [];
+  opfDoc.querySelectorAll("spine itemref").forEach(item=>{
+    spine.push(item.getAttribute("idref"));
+  });
+
+  const basePath = rootfilePath.substring(0, rootfilePath.lastIndexOf('/')+1);
+
+  chapters = [];
+
+  for(let id of spine){
+    const filePath = basePath + manifest[id];
+    const fileObj = zip.file(filePath);
+    if(!fileObj) continue;
+
+    const htmlText = await fileObj.async("text");
+    const clean = new DOMParser().parseFromString(htmlText,'text/html').body.innerHTML;
+
+    if(clean.trim().length>0){
+      chapters.push(clean);
+    }
+  }
+
+  localStorage.setItem('chapters', JSON.stringify(chapters));
+
+  show(0);
+}
+
+function show(i){
+  current = i;
+  document.getElementById('content').innerHTML = chapters[i];
+  localStorage.setItem('last', i);
+}
+
+// AUTO LOAD
+window.onload = ()=>{
+  const savedChapters = localStorage.getItem('chapters');
+  if(savedChapters){
+    chapters = JSON.parse(savedChapters);
+    const last = localStorage.getItem('last') || 0;
+    show(parseInt(last));
+  }
+}
+
+// NAVIGATION
+
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'ArrowRight' && current < chapters.length-1) show(current+1);
+  if(e.key === 'ArrowLeft' && current > 0) show(current-1);
+});
+
+</script></body>
+</html>
