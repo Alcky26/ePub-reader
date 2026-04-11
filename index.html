@@ -10,7 +10,7 @@
 <style>
 body {
   margin:0;
-  font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", "Noto Color Emoji", sans-serif;
+  font-family:system-ui;
   background:#0f0f0f;
   color:#eaeaea;
 }
@@ -66,7 +66,7 @@ button, input {
 }
 
 .nav-bar button {
-  font-size:22px;
+  font-size:20px;
   padding:14px;
   min-width:80px;
 }
@@ -114,14 +114,15 @@ button, input {
 
 <header>
 <input type="file" id="fileInput" accept=".epub">
-<button onclick="loadBook()">📂</button>
-<button onclick="resetBook()">🗑</button>
-<button onclick="toggleIndex()">📚</button>
+<button onclick="loadBook()">📂 Riapri</button>
+<button onclick="resetBook()">🗑 Reset</button>
+<button onclick="toggleIndex()">📚 Indice</button>
 </header>
 
 <div id="status">Pronto</div>
 <div id="navInfo"></div>
 
+<!-- CONTROLS -->
 <div id="controls">
   <div id="stats">0 / 0 • 0%</div>
 
@@ -134,8 +135,8 @@ button, input {
 </div>
 
 <div class="nav-bar">
-<button onclick="prev()">⬅️</button>
-<button onclick="next()">➡️</button>
+<button onclick="prev()">◀</button>
+<button onclick="next()">▶</button>
 </div>
 
 <main>
@@ -143,8 +144,8 @@ button, input {
 </main>
 
 <div class="nav-bar">
-<button onclick="prev()">⬅️</button>
-<button onclick="next()">➡️</button>
+<button onclick="prev()">◀</button>
+<button onclick="next()">▶</button>
 </div>
 
 <div id="index"></div>
@@ -155,19 +156,23 @@ let db;
 let chapters = [];
 let current = 0;
 
+// stats
 let chapterWords = [];
 let totalWords = 0;
 
+// style
 let fontSize = parseInt(localStorage.getItem("fontSize")) || 18;
 let lineHeight = parseFloat(localStorage.getItem("lineHeight")) || 1.8;
 
 // ---------------- DB ----------------
 function openDB(){
-  return new Promise(resolve=>{
+  return new Promise((resolve)=>{
     const req = indexedDB.open("EPUB_DB",1);
+
     req.onupgradeneeded = e=>{
       e.target.result.createObjectStore("store");
     };
+
     req.onsuccess = e=>{
       db = e.target.result;
       resolve();
@@ -202,6 +207,7 @@ function dbClear(){
 // ---------------- INIT ----------------
 (async()=>{
   await openDB();
+
   applyStyle();
 
   const saved = await dbGet("chapters");
@@ -210,8 +216,13 @@ function dbClear(){
     const last = await dbGet("last") || 0;
     renderIndex();
     show(last);
+    setStatus("Libro caricato");
   }
 })();
+
+function setStatus(msg){
+  document.getElementById("status").innerText = msg;
+}
 
 // ---------------- TEXT ----------------
 function extractText(html){
@@ -220,23 +231,36 @@ function extractText(html){
 }
 
 function countWords(text){
-  return text.trim().split(/\s+/).filter(w=>w).length;
+  const words = text.trim().split(/\s+/);
+  return words.filter(w => w.length > 0).length;
 }
 
-// ---------------- IMAGE FIX ----------------
-async function fixImages(html, zip, base){
+// ---------------- FILE ----------------
+document.getElementById("fileInput").addEventListener("change", async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
 
-  const doc = new DOMParser().parseFromString(html,"text/html");
+  setStatus("📥 Lettura EPUB...");
+  const buffer = await file.arrayBuffer();
+
+  process(buffer);
+});
+
+// ---------------- IMAGE FIX ----------------
+async function fixImages(html, zip, basePath){
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
   const imgs = doc.querySelectorAll("img");
 
   for(const img of imgs){
+
     let src = img.getAttribute("src");
     if(!src) continue;
 
-    let path = base + src;
+    let path = basePath + src;
 
     while(path.includes("../")){
-      path = path.replace(/[^\/]+\/\.\.\//,"");
+      path = path.replace(/[^\/]+\/\.\.\//, "");
     }
 
     const file = zip.file(path);
@@ -245,44 +269,41 @@ async function fixImages(html, zip, base){
     const blob = await file.async("blob");
 
     const dataUrl = await new Promise(res=>{
-      const r = new FileReader();
-      r.onload = ()=>res(r.result);
-      r.readAsDataURL(blob);
+      const reader = new FileReader();
+      reader.onload = ()=>res(reader.result);
+      reader.readAsDataURL(blob);
     });
 
-    img.src = dataUrl;
+    img.setAttribute("src", dataUrl);
   }
 
   return doc.body.innerHTML;
 }
 
 // ---------------- EPUB ----------------
-document.getElementById("fileInput").addEventListener("change", async e=>{
-  const file = e.target.files[0];
-  if(!file) return;
-
-  const buffer = await file.arrayBuffer();
-  process(buffer);
-});
-
 async function process(buffer){
+
+  setStatus("📦 Parsing EPUB...");
 
   const zip = await JSZip.loadAsync(buffer);
   const parser = new DOMParser();
 
-  const container = await zip.file("META-INF/container.xml").async("text");
-  const rootfile = parser.parseFromString(container,"application/xml")
-    .querySelector("rootfile").getAttribute("full-path");
+  const containerXml = await zip.file("META-INF/container.xml").async("text");
+  const rootfile = parser
+    .parseFromString(containerXml,"application/xml")
+    .querySelector("rootfile")
+    .getAttribute("full-path");
 
-  const opf = parser.parseFromString(await zip.file(rootfile).async("text"),"application/xml");
+  const opfText = await zip.file(rootfile).async("text");
+  const opfDoc = parser.parseFromString(opfText,"application/xml");
 
   const manifest = {};
-  opf.querySelectorAll("manifest item").forEach(i=>{
+  opfDoc.querySelectorAll("manifest item").forEach(i=>{
     manifest[i.getAttribute("id")] = i.getAttribute("href");
   });
 
   const spine = [];
-  opf.querySelectorAll("spine itemref").forEach(i=>{
+  opfDoc.querySelectorAll("spine itemref").forEach(i=>{
     spine.push(i.getAttribute("idref"));
   });
 
@@ -291,16 +312,20 @@ async function process(buffer){
   chapters = [];
   chapterWords = [];
 
+  setStatus("📚 Generazione capitoli...");
+
   for(const id of spine){
 
-    const file = zip.file(base + manifest[id]);
+    const path = base + manifest[id];
+    const file = zip.file(path);
     if(!file) continue;
 
     const html = await file.async("text");
+
     const fixed = await fixImages(html, zip, base);
 
     const clean = new DOMParser()
-      .parseFromString(fixed,"application/xhtml+xml")
+      .parseFromString(fixed,"text/html")
       .body.innerHTML;
 
     if(clean.trim()){
@@ -313,6 +338,11 @@ async function process(buffer){
 
   totalWords = chapterWords.reduce((a,b)=>a+b,0);
 
+  await dbSet("chapters", chapters);
+  await dbSet("last", 0);
+
+  setStatus("✅ Libro pronto ("+chapters.length+")");
+
   renderIndex();
   show(0);
 }
@@ -321,22 +351,26 @@ async function process(buffer){
 function show(i){
   current = i;
   document.getElementById("content").innerHTML = chapters[i];
-  updateStats();
-  applyStyle();
+  dbSet("last", i);
 
   document.getElementById("navInfo").innerText =
     "Capitolo " + (i+1) + " / " + chapters.length;
+
+  updateStats();
+  applyStyle();
 }
 
-function prev(){ if(current>0) show(current-1); }
-function next(){ if(current<chapters.length-1) show(current+1); }
+function prev(){ if(current > 0) show(current-1); }
+function next(){ if(current < chapters.length-1) show(current+1); }
 
 // ---------------- STATS ----------------
 function updateStats(){
   let read = 0;
   for(let i=0;i<=current;i++) read += chapterWords[i] || 0;
 
-  const percent = totalWords ? ((read/totalWords)*100).toFixed(1) : 0;
+  const percent = totalWords
+    ? ((read/totalWords)*100).toFixed(1)
+    : 0;
 
   document.getElementById("stats").innerText =
     `${read} / ${totalWords} • ${percent}%`;
@@ -379,10 +413,27 @@ function renderIndex(){
 
 function toggleIndex(){
   const el = document.getElementById("index");
-  el.style.display = el.style.display==="block" ? "none" : "block";
+  el.style.display = el.style.display === "block" ? "none" : "block";
 }
 
-openDB();
+// ---------------- LOAD / RESET ----------------
+async function loadBook(){
+  const saved = await dbGet("chapters");
+  const last = await dbGet("last");
+
+  if(!saved) return setStatus("Nessun libro");
+
+  chapters = saved;
+  renderIndex();
+  show(last || 0);
+}
+
+async function resetBook(){
+  await dbClear();
+  chapters=[];
+  document.getElementById("content").innerHTML="Reset";
+  setStatus("Pulito");
+}
 
 </script>
 
