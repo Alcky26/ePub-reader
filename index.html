@@ -10,17 +10,32 @@ button,input { padding:10px; border:none; border-radius:6px; background:#333; co
 #status { padding:10px 15px; font-size:14px; color:#8ab4f8; }
 </style></head>
 <body><header>
+<button onclick="prev()">◀</button>
+<button onclick="next()">▶</button>
+<button onclick="toggleIndex()">📚 Capitoli</button>
 <input type="file" id="fileInput" accept=".epub">
-<button onclick="loadBook()">📚 Riapri libro</button>
-<button onclick="resetBook()">🗑 Reset</button>
-</header><div id="status">Pronto.</div>
+</header>
+
+<div id="navInfo"></div>
+<div id="index" style="display:none; padding:10px;"></div><div id="status">Pronto.</div>
 <main>
 <article id="content">Carica un EPUB</article>
 </main><script>
 let db;
 let chapters = [];
 let current = 0;
+function prev(){
+  if(current > 0) show(current-1);
+}
 
+function next(){
+  if(current < chapters.length-1) show(current+1);
+}
+
+function updateNav(){
+  document.getElementById("navInfo").innerText =
+    `Capitolo ${current+1} / ${chapters.length}`;
+}
 // ---------------- STATUS ----------------
 function setStatus(msg){
   document.getElementById('status').innerText = msg;
@@ -150,7 +165,8 @@ async function process(buffer){
   await dbSet('last', 0);
 
   setStatus('✅ Libro caricato ('+chapters.length+' capitoli)');
-
+renderIndex();
+updateNav();
   show(0);
 }
 
@@ -159,6 +175,7 @@ function show(i){
   current = i;
   document.getElementById('content').innerHTML = chapters[i];
   dbSet('last', i);
+  updateNav();
 }
 
 // ---------------- LOAD ----------------
@@ -187,7 +204,29 @@ document.addEventListener('keydown',(e)=>{
   if(e.key==='ArrowRight' && current < chapters.length-1) show(current+1);
   if(e.key==='ArrowLeft' && current > 0) show(current-1);
 });
+function renderIndex(){
+  const el = document.getElementById("index");
+  el.innerHTML = "";
 
+  chapters.forEach((c,i)=>{
+    const btn = document.createElement("button");
+    btn.innerText = "Capitolo " + (i+1);
+    btn.style.display = "block";
+    btn.style.margin = "5px 0";
+    btn.onclick = ()=> show(i);
+    el.appendChild(btn);
+  });
+}
+
+function toggleIndex(){
+  const el = document.getElementById("index");
+  if(el.style.display === "none"){
+    renderIndex();
+    el.style.display = "block";
+  } else {
+    el.style.display = "none";
+  }
+}
 </script></body>
 </html><!-- manifest.json -->{ "name": "EPUB Reader PRO", "short_name": "EPUB", "start_url": "index.html", "display": "standalone", "background_color": "#0f0f0f", "theme_color": "#0f0f0f" }
 
