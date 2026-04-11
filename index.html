@@ -23,6 +23,20 @@ header {
   flex-wrap:wrap;
 }
 
+/* CONTROL BAR */
+#controls {
+  padding:10px;
+  background:#111;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.control-group button {
+  margin:2px;
+}
+
 button, input {
   padding:10px;
   border:none;
@@ -31,10 +45,9 @@ button, input {
   color:white;
 }
 
-#status, #navInfo {
-  padding:6px 12px;
+#stats {
   font-size:14px;
-  color:#aaa;
+  color:#8ab4f8;
 }
 
 /* NAV */
@@ -66,7 +79,6 @@ button, input {
   max-width:100%;
   height:auto;
   margin:20px auto;
-  border-radius:8px;
 }
 
 /* INDEX */
@@ -80,7 +92,6 @@ button, input {
   background:#111;
   display:none;
   padding:10px;
-  border-top:2px solid #333;
 }
 
 #index button {
@@ -94,17 +105,26 @@ button, input {
 
 <header>
 <input type="file" id="fileInput" accept=".epub">
-<button onclick="loadBook()">📂 Riapri</button>
-<button onclick="resetBook()">🗑 Reset</button>
-<button onclick="toggleIndex()">📚 Indice</button>
+<button onclick="loadBook()"></button>
+<button onclick="resetBook()"></button>
+<button onclick="toggleIndex()"></button>
 </header>
 
-<div id="status">Pronto</div>
-<div id="navInfo"></div>
+<!-- CONTROLS -->
+<div id="controls">
+  <div id="stats">0 / 0 � 0%</div>
+
+  <div class="control-group">
+    <button onclick="fontSize(-1)">A-</button>
+    <button onclick="fontSize(1)">A+</button>
+    <button onclick="lineHeight(-0.1)">-</button>
+    <button onclick="lineHeight(0.1)">+</button>
+  </div>
+</div>
 
 <div class="nav-bar">
-<button onclick="prev()">◀</button>
-<button onclick="next()">▶</button>
+<button onclick="prev()"></button>
+<button onclick="next()"></button>
 </div>
 
 <main>
@@ -112,8 +132,8 @@ button, input {
 </main>
 
 <div class="nav-bar">
-<button onclick="prev()">◀</button>
-<button onclick="next()">▶</button>
+<button onclick="prev()"></button>
+<button onclick="next()"></button>
 </div>
 
 <div id="index"></div>
@@ -124,15 +144,21 @@ let db;
 let chapters = [];
 let current = 0;
 
+// stats
+let chapterWords = [];
+let totalWords = 0;
+
+// style
+let font = 18;
+let line = 1.8;
+
 // ---------------- DB ----------------
 function openDB(){
-  return new Promise((resolve)=>{
+  return new Promise(resolve=>{
     const req = indexedDB.open("EPUB_DB",1);
-
     req.onupgradeneeded = e=>{
       e.target.result.createObjectStore("store");
     };
-
     req.onsuccess = e=>{
       db = e.target.result;
       resolve();
@@ -156,60 +182,29 @@ function dbGet(k){
   });
 }
 
-function dbClear(){
-  return new Promise(res=>{
-    const tx = db.transaction("store","readwrite");
-    tx.objectStore("store").clear();
-    tx.oncomplete = res;
-  });
+// ---------------- TEXT CLEAN ----------------
+function extractText(html){
+  const doc = new DOMParser().parseFromString(html,"text/html");
+  return doc.body.textContent || "";
 }
 
-// ---------------- INIT ----------------
-(async()=>{
-  await openDB();
-
-  const saved = await dbGet("chapters");
-  if(saved){
-    chapters = saved;
-    const last = await dbGet("last") || 0;
-    renderIndex();
-    show(last);
-    setStatus("Libro caricato");
-  }
-})();
-
-function setStatus(msg){
-  document.getElementById("status").innerText = msg;
+function countWords(text){
+  return text.trim().split(/\s+/).length;
 }
-
-// ---------------- FILE ----------------
-document.getElementById("fileInput").addEventListener("change", async e=>{
-  const file = e.target.files[0];
-  if(!file) return;
-
-  setStatus("📥 Lettura EPUB...");
-  const buffer = await file.arrayBuffer();
-
-  process(buffer);
-});
 
 // ---------------- IMAGE FIX ----------------
-async function fixImages(html, zip, basePath){
-
-  const doc = new DOMParser().parseFromString(html, "text/html");
+async function fixImages(html, zip, base){
+  const doc = new DOMParser().parseFromString(html,"text/html");
   const imgs = doc.querySelectorAll("img");
 
   for(const img of imgs){
-
     let src = img.getAttribute("src");
     if(!src) continue;
 
-    // normalizza path
-    let path = basePath + src;
+    let path = base + src;
 
-    // gestisce ../
     while(path.includes("../")){
-      path = path.replace(/[^\/]+\/\.\.\//, "");
+      path = path.replace(/[^\/]+\/\.\.\//,"");
     }
 
     const file = zip.file(path);
@@ -218,93 +213,117 @@ async function fixImages(html, zip, basePath){
     const blob = await file.async("blob");
 
     const dataUrl = await new Promise(res=>{
-      const reader = new FileReader();
-      reader.onload = ()=>res(reader.result);
-      reader.readAsDataURL(blob);
+      const r = new FileReader();
+      r.onload = ()=>res(r.result);
+      r.readAsDataURL(blob);
     });
 
-    img.setAttribute("src", dataUrl);
+    img.src = dataUrl;
   }
 
   return doc.body.innerHTML;
 }
 
 // ---------------- EPUB ----------------
-async function process(buffer){
+document.getElementById("fileInput").addEventListener("change", async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
 
-  setStatus("📦 Parsing EPUB...");
+  const buffer = await file.arrayBuffer();
+  process(buffer);
+});
+
+async function process(buffer){
 
   const zip = await JSZip.loadAsync(buffer);
   const parser = new DOMParser();
 
-  const containerXml = await zip.file("META-INF/container.xml").async("text");
-  const rootfile = parser
-    .parseFromString(containerXml,"application/xml")
-    .querySelector("rootfile")
-    .getAttribute("full-path");
+  const container = await zip.file("META-INF/container.xml").async("text");
+  const rootfile = parser.parseFromString(container,"application/xml")
+    .querySelector("rootfile").getAttribute("full-path");
 
-  const opfText = await zip.file(rootfile).async("text");
-  const opfDoc = parser.parseFromString(opfText,"application/xml");
+  const opf = parser.parseFromString(await zip.file(rootfile).async("text"),"application/xml");
 
   const manifest = {};
-  opfDoc.querySelectorAll("manifest item").forEach(i=>{
+  opf.querySelectorAll("manifest item").forEach(i=>{
     manifest[i.getAttribute("id")] = i.getAttribute("href");
   });
 
   const spine = [];
-  opfDoc.querySelectorAll("spine itemref").forEach(i=>{
+  opf.querySelectorAll("spine itemref").forEach(i=>{
     spine.push(i.getAttribute("idref"));
   });
 
   const base = rootfile.substring(0, rootfile.lastIndexOf("/") + 1);
 
   chapters = [];
-
-  setStatus("📚 Generazione capitoli...");
+  chapterWords = [];
 
   for(const id of spine){
 
-    const path = base + manifest[id];
-    const file = zip.file(path);
+    const file = zip.file(base + manifest[id]);
     if(!file) continue;
 
     const html = await file.async("text");
-
     const fixed = await fixImages(html, zip, base);
 
-    const clean = new DOMParser()
-      .parseFromString(fixed,"text/html")
-      .body.innerHTML;
+    const clean = new DOMParser().parseFromString(fixed,"text/html").body.innerHTML;
 
-    if(clean.trim()) chapters.push(clean);
+    if(clean.trim()){
+      chapters.push(clean);
+
+      const text = extractText(clean);
+      chapterWords.push(countWords(text));
+    }
   }
 
-  await dbSet("chapters", chapters);
-  await dbSet("last", 0);
-
-  setStatus("✅ Libro pronto ("+chapters.length+")");
+  totalWords = chapterWords.reduce((a,b)=>a+b,0);
 
   renderIndex();
   show(0);
 }
 
-// ---------------- NAV ----------------
+// ---------------- SHOW ----------------
 function show(i){
   current = i;
   document.getElementById("content").innerHTML = chapters[i];
-  dbSet("last", i);
-
-  document.getElementById("navInfo").innerText =
-    "Capitolo " + (i+1) + " / " + chapters.length;
+  updateStats();
+  applyStyle();
 }
 
-function prev(){
-  if(current > 0) show(current-1);
+// ---------------- STATS ----------------
+function updateStats(){
+  let read = 0;
+  for(let i=0;i<=current;i++) read += chapterWords[i] || 0;
+
+  const percent = totalWords
+    ? ((read/totalWords)*100).toFixed(1)
+    : 0;
+
+  document.getElementById("stats").innerText =
+    `${read} / ${totalWords} � ${percent}%`;
 }
 
-function next(){
-  if(current < chapters.length-1) show(current+1);
+// ---------------- STYLE ----------------
+function applyStyle(){
+  const c = document.getElementById("content");
+  c.style.fontSize = font + "px";
+  c.style.lineHeight = line;
 }
+
+function fontSize(v){
+  font += v;
+  applyStyle();
+}
+
+function lineHeight(v){
+  line += v;
+  applyStyle();
+}
+
+// ---------------- NAV ----------------
+function prev(){ if(current>0) show(current-1); }
+function next(){ if(current<chapters.length-1) show(current+1); }
 
 // ---------------- INDEX ----------------
 function renderIndex(){
@@ -314,37 +333,34 @@ function renderIndex(){
   chapters.forEach((_,i)=>{
     const b = document.createElement("button");
     b.innerText = "Capitolo " + (i+1);
-    b.onclick = ()=>{
-      show(i);
-      toggleIndex();
-    };
+    b.onclick = ()=>{ show(i); toggleIndex(); };
     el.appendChild(b);
   });
 }
 
 function toggleIndex(){
   const el = document.getElementById("index");
-  el.style.display = el.style.display === "block" ? "none" : "block";
+  el.style.display = el.style.display==="block" ? "none" : "block";
 }
 
 // ---------------- LOAD / RESET ----------------
 async function loadBook(){
   const saved = await dbGet("chapters");
-  const last = await dbGet("last");
-
-  if(!saved) return setStatus("Nessun libro");
+  if(!saved) return;
 
   chapters = saved;
   renderIndex();
-  show(last || 0);
+  show(0);
 }
 
 async function resetBook(){
-  await dbClear();
+  const tx = db.transaction("store","readwrite");
+  tx.objectStore("store").clear();
   chapters=[];
   document.getElementById("content").innerHTML="Reset";
-  setStatus("Pulito");
 }
+
+openDB();
 
 </script>
 
