@@ -10,7 +10,7 @@
 <style>
 body {
   margin:0;
-  font-family: system-ui;
+  font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
   background:#0f0f0f;
   color:#eaeaea;
 }
@@ -71,6 +71,12 @@ button, input {
   font-size:18px;
 }
 
+#content img {
+  max-width:100%;
+  display:block;
+  margin:20px auto;
+}
+
 #index {
   position:fixed;
   bottom:0;
@@ -82,19 +88,7 @@ button, input {
   display:none;
   padding:10px;
 }
-
 #index button { width:100%; margin:4px 0; }
-
-/* LIBRARY */
-#library {
-  background:#111;
-  padding:10px;
-}
-
-#library button {
-  width:100%;
-  margin:4px 0;
-}
 </style>
 </head>
 
@@ -115,6 +109,8 @@ button, input {
   <div>
     <button onclick="changeFont(-1)">A-</button>
     <button onclick="changeFont(1)">A+</button>
+    <button onclick="changeLine(-0.1)">⇅-</button>
+    <button onclick="changeLine(0.1)">⇅+</button>
   </div>
 </div>
 
@@ -122,8 +118,6 @@ button, input {
 <button onclick="prev()">⬅️</button>
 <button onclick="next()">➡️</button>
 </div>
-
-<div id="library"></div>
 
 <main>
 <article id="content">Carica un EPUB</article>
@@ -141,15 +135,12 @@ button, input {
 let db;
 let chapters = [];
 let current = 0;
-let currentBookId = null;
 
 let chapterWords = [];
 let totalWords = 0;
 
-// ---------------- UTILS ----------------
-function getBookId(file){
-  return file.name + "_" + file.size;
-}
+let fontSize = parseInt(localStorage.getItem("fontSize")) || 18;
+let lineHeight = parseFloat(localStorage.getItem("lineHeight")) || 1.8;
 
 // ---------------- DB ----------------
 function openDB(){
@@ -181,10 +172,32 @@ function dbGet(k){
   });
 }
 
+function dbClear(){
+  return new Promise(res=>{
+    const tx = db.transaction("store","readwrite");
+    tx.objectStore("store").clear();
+    tx.oncomplete = res;
+  });
+}
+
 // ---------------- INIT ----------------
 (async()=>{
   await openDB();
-  renderLibrary();
+  applyStyle();
+
+  const saved = await dbGet("chapters");
+  const savedWords = await dbGet("chapterWords");
+  const savedTotal = await dbGet("totalWords");
+
+  if(saved){
+    chapters = saved;
+    chapterWords = savedWords || [];
+    totalWords = savedTotal || 0;
+
+    const last = await dbGet("last") || 0;
+    renderIndex();
+    show(last);
+  }
 })();
 
 // ---------------- FILE ----------------
@@ -192,14 +205,41 @@ document.getElementById("fileInput").addEventListener("change", async e=>{
   const file = e.target.files[0];
   if(!file) return;
 
-  currentBookId = getBookId(file);
-
   const buffer = await file.arrayBuffer();
-  process(buffer, file.name);
+  process(buffer);
 });
 
+// ---------------- IMAGE FIX ----------------
+async function fixImages(doc, zip, base){
+  const imgs = doc.querySelectorAll("img");
+
+  for(const img of imgs){
+    let src = img.getAttribute("src");
+    if(!src) continue;
+
+    let path = base + src;
+
+    while(path.includes("../")){
+      path = path.replace(/[^\/]+\/\.\.\//,"");
+    }
+
+    const file = zip.file(path);
+    if(!file) continue;
+
+    const blob = await file.async("blob");
+
+    const dataUrl = await new Promise(res=>{
+      const r = new FileReader();
+      r.onload = ()=>res(r.result);
+      r.readAsDataURL(blob);
+    });
+
+    img.src = dataUrl;
+  }
+}
+
 // ---------------- EPUB ----------------
-async function process(buffer, name){
+async function process(buffer){
 
   const zip = await JSZip.loadAsync(buffer);
   const parser = new DOMParser();
@@ -233,6 +273,9 @@ async function process(buffer, name){
     const html = await file.async("text");
 
     const doc = new DOMParser().parseFromString(html,"text/html");
+
+    await fixImages(doc, zip, base);
+
     const content = doc.body.innerHTML;
 
     if(content.trim()){
@@ -248,16 +291,9 @@ async function process(buffer, name){
   await dbSet("chapters", chapters);
   await dbSet("chapterWords", chapterWords);
   await dbSet("totalWords", totalWords);
+  await dbSet("last", 0);
 
-  // salva libro
-  let books = await dbGet("books") || {};
-  books[currentBookId] = {
-    name: name,
-    lastChapter: 0
-  };
-  await dbSet("books", books);
-
-  renderLibrary();
+  renderIndex();
   show(0);
 }
 
@@ -265,59 +301,17 @@ async function process(buffer, name){
 function show(i){
   current = i;
   document.getElementById("content").innerHTML = chapters[i];
+  dbSet("last", i);
+
+  document.getElementById("navInfo").innerText =
+    "Capitolo " + (i+1) + " / " + chapters.length;
 
   updateStats();
-
-  saveProgress();
-}
-
-function saveProgress(){
-  dbGet("books").then(books=>{
-    if(!books[currentBookId]) return;
-
-    books[currentBookId].lastChapter = current;
-    dbSet("books", books);
-  });
+  applyStyle();
 }
 
 function prev(){ if(current>0) show(current-1); }
 function next(){ if(current<chapters.length-1) show(current+1); }
-
-// ---------------- LIBRARY ----------------
-async function renderLibrary(){
-  const el = document.getElementById("library");
-  const books = await dbGet("books") || {};
-
-  el.innerHTML = "<b>Libreria:</b>";
-
-  Object.keys(books).forEach(id=>{
-    const b = document.createElement("button");
-    b.innerText = books[id].name + " (cap " + (books[id].lastChapter+1) + ")";
-
-    b.onclick = async ()=>{
-      currentBookId = id;
-      await loadBook();
-      show(books[id].lastChapter);
-    };
-
-    el.appendChild(b);
-  });
-}
-
-// ---------------- LOAD ----------------
-async function loadBook(){
-  const saved = await dbGet("chapters");
-  const words = await dbGet("chapterWords");
-  const total = await dbGet("totalWords");
-
-  if(!saved) return;
-
-  chapters = saved;
-  chapterWords = words;
-  totalWords = total;
-
-  renderIndex();
-}
 
 // ---------------- STATS ----------------
 function updateStats(){
@@ -328,6 +322,25 @@ function updateStats(){
 
   document.getElementById("stats").innerText =
     `${read} / ${totalWords} • ${percent}%`;
+}
+
+// ---------------- STYLE ----------------
+function applyStyle(){
+  const c = document.getElementById("content");
+  c.style.fontSize = fontSize + "px";
+  c.style.lineHeight = lineHeight;
+}
+
+function changeFont(v){
+  fontSize += v;
+  localStorage.setItem("fontSize", fontSize);
+  applyStyle();
+}
+
+function changeLine(v){
+  lineHeight += v;
+  localStorage.setItem("lineHeight", lineHeight);
+  applyStyle();
 }
 
 // ---------------- INDEX ----------------
@@ -351,10 +364,28 @@ function toggleIndex(){
   el.style.display = el.style.display==="block" ? "none" : "block";
 }
 
-// ---------------- RESET ----------------
+// ---------------- LOAD / RESET ----------------
+async function loadBook(){
+  const saved = await dbGet("chapters");
+  const last = await dbGet("last");
+
+  const savedWords = await dbGet("chapterWords");
+  const savedTotal = await dbGet("totalWords");
+
+  if(!saved) return;
+
+  chapters = saved;
+  chapterWords = savedWords || [];
+  totalWords = savedTotal || 0;
+
+  renderIndex();
+  show(last || 0);
+}
+
 async function resetBook(){
-  await dbSet("books", {});
-  location.reload();
+  await dbClear();
+  chapters=[];
+  document.getElementById("content").innerHTML="Reset";
 }
 
 </script>
