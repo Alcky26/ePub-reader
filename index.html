@@ -93,6 +93,7 @@ button { cursor:pointer; }
 <button onclick="resetBook()">🗑 Reset</button>
 <button onclick="toggleIndex()">📚 Indice</button>
 </header><div id="status">Pronto.</div>
+<div id="stats"></div>
 <div id="navInfo"></div><!-- NAV TOP --><div class="nav-bar">
   <button onclick="prev()">◀</button>
   <button onclick="next()">▶</button>
@@ -106,6 +107,8 @@ button { cursor:pointer; }
 let db;
 let chapters = [];
 let current = 0;
+let chapterWords = [];
+let totalWords = 0;
 
 // ---------------- DB ----------------
 function openDB(){
@@ -221,7 +224,10 @@ async function process(buffer){
     const html = await file.async("text");
     const clean = new DOMParser().parseFromString(html,"text/html").body.innerHTML;
 
-    if(clean.trim()) chapters.push(clean);
+    if(clean.trim()){
+  chapters.push(clean);
+  chapterWords.push(estimateWords(clean));
+}
   }
 
   await dbSet("chapters", chapters);
@@ -231,14 +237,34 @@ async function process(buffer){
 
   renderIndex();
   show(0);
+totalWords = chapterWords.reduce((a,b)=>a+b,0);
+updateStats();
 }
+function estimateWords(html){
+  const text = html.replace(/<[^>]*>/g,'');
+  return Math.max(1, Math.round(text.length / 5));
+}
+function updateStats(){
 
+  const currentWords = chapterWords[current] || 0;
+
+  let before = 0;
+  for(let i=0;i<current;i++) before += chapterWords[i];
+
+  const percent = totalWords
+    ? ((before / totalWords) * 100).toFixed(1)
+    : 0;
+
+  document.getElementById("stats").innerText =
+    `${before + currentWords} / ${totalWords} � ${percent}%`;
+}
 // ---------------- SHOW ----------------
 function show(i){
   current = i;
   document.getElementById("content").innerHTML = chapters[i];
   dbSet("last", i);
   updateNav();
+  updateStats();
 }
 
 function updateNav(){
