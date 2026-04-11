@@ -1,8 +1,13 @@
-<!DOCTYPE html><html lang="it">
+<!DOCTYPE html>
+<html lang="it">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EPUB Reader PRO</title><script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script><style>
+<title>EPUB Reader PRO</title>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<style>
 body {
   margin:0;
   font-family:system-ui;
@@ -16,7 +21,6 @@ header {
   display:flex;
   gap:8px;
   flex-wrap:wrap;
-  align-items:center;
 }
 
 button, input {
@@ -27,81 +31,94 @@ button, input {
   color:white;
 }
 
-button { cursor:pointer; }
-
-#status {
-  padding:8px 12px;
-  font-size:13px;
-  color:#8ab4f8;
-}
-
-#navInfo {
-  padding:5px 12px;
+#status, #navInfo {
+  padding:6px 12px;
   font-size:14px;
-  color:#ccc;
+  color:#aaa;
 }
 
-/* NAV BIG BUTTONS */
+/* NAV */
 .nav-bar {
   display:flex;
   justify-content:space-between;
-  align-items:center;
-  padding:10px 15px;
+  padding:10px;
   background:#111;
-  border-top:1px solid #222;
-  border-bottom:1px solid #222;
 }
 
 .nav-bar button {
-  font-size:22px;
-  padding:14px 18px;
+  font-size:20px;
+  padding:14px;
   min-width:80px;
 }
 
+/* CONTENT */
 #content {
   padding:20px;
   max-width:850px;
   margin:auto;
   line-height:1.8;
   font-size:18px;
-  min-height:60vh;
 }
 
-/* INDEX MODAL */
+/* IMMAGINI */
+#content img {
+  display:block;
+  max-width:100%;
+  height:auto;
+  margin:20px auto;
+  border-radius:8px;
+}
+
+/* INDEX */
 #index {
   position:fixed;
+  bottom:0;
   left:0;
   right:0;
-  bottom:0;
   max-height:60vh;
   overflow:auto;
   background:#111;
-  border-top:2px solid #333;
   display:none;
   padding:10px;
+  border-top:2px solid #333;
 }
 
 #index button {
   width:100%;
   margin:4px 0;
-  text-align:left;
-  background:#222;
 }
-</style></head><body><header>
+</style>
+</head>
+
+<body>
+
+<header>
 <input type="file" id="fileInput" accept=".epub">
-<button onclick="loadBook()"> Riapri libro</button>
-<button onclick="resetBook()"> Reset</button>
-<button onclick="toggleIndex()"> Indice</button>
-</header><div id="status">Pronto.</div>
-<div id="navInfo"></div><!-- NAV TOP --><div class="nav-bar">
-  <button onclick="prev()"></button>
-  <button onclick="next()"></button>
-</div><main>
+<button onclick="loadBook()">📂 Riapri</button>
+<button onclick="resetBook()">🗑 Reset</button>
+<button onclick="toggleIndex()">📚 Indice</button>
+</header>
+
+<div id="status">Pronto</div>
+<div id="navInfo"></div>
+
+<div class="nav-bar">
+<button onclick="prev()">◀</button>
+<button onclick="next()">▶</button>
+</div>
+
+<main>
 <article id="content">Carica un EPUB</article>
-</main><!-- NAV BOTTOM --><div class="nav-bar">
-  <button onclick="prev()"></button>
-  <button onclick="next()"></button>
-</div><div id="index"></div><script>
+</main>
+
+<div class="nav-bar">
+<button onclick="prev()">◀</button>
+<button onclick="next()">▶</button>
+</div>
+
+<div id="index"></div>
+
+<script>
 
 let db;
 let chapters = [];
@@ -109,44 +126,41 @@ let current = 0;
 
 // ---------------- DB ----------------
 function openDB(){
-  return new Promise((resolve,reject)=>{
+  return new Promise((resolve)=>{
     const req = indexedDB.open("EPUB_DB",1);
 
     req.onupgradeneeded = e=>{
-      const db = e.target.result;
-      db.createObjectStore("store");
+      e.target.result.createObjectStore("store");
     };
 
     req.onsuccess = e=>{
       db = e.target.result;
-      resolve(db);
+      resolve();
     };
-
-    req.onerror = ()=>reject();
   });
 }
 
-function dbSet(key,val){
-  return new Promise((resolve)=>{
+function dbSet(k,v){
+  return new Promise(res=>{
     const tx = db.transaction("store","readwrite");
-    tx.objectStore("store").put(val,key);
-    tx.oncomplete = ()=>resolve();
+    tx.objectStore("store").put(v,k);
+    tx.oncomplete = res;
   });
 }
 
-function dbGet(key){
-  return new Promise((resolve)=>{
+function dbGet(k){
+  return new Promise(res=>{
     const tx = db.transaction("store","readonly");
-    const req = tx.objectStore("store").get(key);
-    req.onsuccess = ()=>resolve(req.result);
+    const r = tx.objectStore("store").get(k);
+    r.onsuccess = ()=>res(r.result);
   });
 }
 
 function dbClear(){
-  return new Promise((resolve)=>{
+  return new Promise(res=>{
     const tx = db.transaction("store","readwrite");
     tx.objectStore("store").clear();
-    tx.oncomplete = ()=>resolve();
+    tx.oncomplete = res;
   });
 }
 
@@ -158,11 +172,9 @@ function dbClear(){
   if(saved){
     chapters = saved;
     const last = await dbGet("last") || 0;
-    setStatus("Libro caricato da memoria");
     renderIndex();
     show(last);
-  } else {
-    setStatus("Pronto.");
+    setStatus("Libro caricato");
   }
 })();
 
@@ -171,28 +183,65 @@ function setStatus(msg){
 }
 
 // ---------------- FILE ----------------
-document.getElementById("fileInput").addEventListener("change", async (e)=>{
+document.getElementById("fileInput").addEventListener("change", async e=>{
   const file = e.target.files[0];
   if(!file) return;
 
-  setStatus(" Lettura EPUB...");
-
+  setStatus("📥 Lettura EPUB...");
   const buffer = await file.arrayBuffer();
+
   process(buffer);
 });
+
+// ---------------- IMAGE FIX ----------------
+async function fixImages(html, zip, basePath){
+
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const imgs = doc.querySelectorAll("img");
+
+  for(const img of imgs){
+
+    let src = img.getAttribute("src");
+    if(!src) continue;
+
+    // normalizza path
+    let path = basePath + src;
+
+    // gestisce ../
+    while(path.includes("../")){
+      path = path.replace(/[^\/]+\/\.\.\//, "");
+    }
+
+    const file = zip.file(path);
+    if(!file) continue;
+
+    const blob = await file.async("blob");
+
+    const dataUrl = await new Promise(res=>{
+      const reader = new FileReader();
+      reader.onload = ()=>res(reader.result);
+      reader.readAsDataURL(blob);
+    });
+
+    img.setAttribute("src", dataUrl);
+  }
+
+  return doc.body.innerHTML;
+}
 
 // ---------------- EPUB ----------------
 async function process(buffer){
 
-  setStatus(" Parsing EPUB...");
+  setStatus("📦 Parsing EPUB...");
 
   const zip = await JSZip.loadAsync(buffer);
   const parser = new DOMParser();
 
   const containerXml = await zip.file("META-INF/container.xml").async("text");
-  const containerDoc = parser.parseFromString(containerXml,"application/xml");
-
-  const rootfile = containerDoc.querySelector("rootfile").getAttribute("full-path");
+  const rootfile = parser
+    .parseFromString(containerXml,"application/xml")
+    .querySelector("rootfile")
+    .getAttribute("full-path");
 
   const opfText = await zip.file(rootfile).async("text");
   const opfDoc = parser.parseFromString(opfText,"application/xml");
@@ -207,19 +256,25 @@ async function process(buffer){
     spine.push(i.getAttribute("idref"));
   });
 
-  const base = rootfile.substring(0, rootfile.lastIndexOf('/')+1);
+  const base = rootfile.substring(0, rootfile.lastIndexOf("/") + 1);
 
   chapters = [];
 
-  setStatus(" Generazione capitoli...");
+  setStatus("📚 Generazione capitoli...");
 
   for(const id of spine){
+
     const path = base + manifest[id];
     const file = zip.file(path);
     if(!file) continue;
 
     const html = await file.async("text");
-    const clean = new DOMParser().parseFromString(html,"text/html").body.innerHTML;
+
+    const fixed = await fixImages(html, zip, base);
+
+    const clean = new DOMParser()
+      .parseFromString(fixed,"text/html")
+      .body.innerHTML;
 
     if(clean.trim()) chapters.push(clean);
   }
@@ -227,23 +282,20 @@ async function process(buffer){
   await dbSet("chapters", chapters);
   await dbSet("last", 0);
 
-  setStatus(" Libro caricato ("+chapters.length+")");
+  setStatus("✅ Libro pronto ("+chapters.length+")");
 
   renderIndex();
   show(0);
 }
 
-// ---------------- SHOW ----------------
+// ---------------- NAV ----------------
 function show(i){
   current = i;
   document.getElementById("content").innerHTML = chapters[i];
   dbSet("last", i);
-  updateNav();
-}
 
-function updateNav(){
   document.getElementById("navInfo").innerText =
-    "Capitolo " + (current+1) + " / " + chapters.length;
+    "Capitolo " + (i+1) + " / " + chapters.length;
 }
 
 function prev(){
@@ -260,19 +312,19 @@ function renderIndex(){
   el.innerHTML = "";
 
   chapters.forEach((_,i)=>{
-    const btn = document.createElement("button");
-    btn.innerText = "Capitolo " + (i+1);
-    btn.onclick = ()=>{
+    const b = document.createElement("button");
+    b.innerText = "Capitolo " + (i+1);
+    b.onclick = ()=>{
       show(i);
       toggleIndex();
     };
-    el.appendChild(btn);
+    el.appendChild(b);
   });
 }
 
 function toggleIndex(){
   const el = document.getElementById("index");
-  el.style.display = (el.style.display === "block") ? "none" : "block";
+  el.style.display = el.style.display === "block" ? "none" : "block";
 }
 
 // ---------------- LOAD / RESET ----------------
@@ -280,12 +332,11 @@ async function loadBook(){
   const saved = await dbGet("chapters");
   const last = await dbGet("last");
 
-  if(!saved) return setStatus("Nessun libro salvato");
+  if(!saved) return setStatus("Nessun libro");
 
   chapters = saved;
   renderIndex();
   show(last || 0);
-  setStatus("Libro caricato");
 }
 
 async function resetBook(){
@@ -295,11 +346,7 @@ async function resetBook(){
   setStatus("Pulito");
 }
 
-// ---------------- KEYBOARD ----------------
-document.addEventListener("keydown",(e)=>{
-  if(e.key==="ArrowRight") next();
-  if(e.key==="ArrowLeft") prev();
-});
+</script>
 
-</script></body>
+</body>
 </html>
