@@ -2,8 +2,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EPUB Reader PRO (IndexedDB)</title>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script><style>
+<title>EPUB Reader PRO FIX</title><script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script><style>
 body { margin:0; font-family:system-ui; background:#0f0f0f; color:#eaeaea; }
 header { padding:10px; background:#1a1a1a; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 button,input { padding:10px; border:none; border-radius:6px; background:#333; color:white; }
@@ -12,183 +11,160 @@ button,input { padding:10px; border:none; border-radius:6px; background:#333; co
 </style></head>
 <body><header>
 <input type="file" id="fileInput" accept=".epub">
-<button onclick="loadFromDB()"> Riapri libro</button>
-<button onclick="clearBook()"> Reset</button>
+<button onclick="loadBook()">📚 Riapri libro</button>
+<button onclick="resetBook()">🗑 Reset</button>
 </header><div id="status">Pronto.</div>
 <main>
-<article id="content">Carica un EPUB per iniziare</article>
+<article id="content">Carica un EPUB</article>
 </main><script>
+let db;
 let chapters = [];
 let current = 0;
-let db;
 
-// -------------------------
-// STATUS
-// -------------------------
+// ---------------- STATUS ----------------
 function setStatus(msg){
   document.getElementById('status').innerText = msg;
   console.log(msg);
 }
 
-// -------------------------
-// INDEXEDDB
-// -------------------------
+// ---------------- DB INIT ----------------
 function openDB(){
   return new Promise((resolve,reject)=>{
-    const request = indexedDB.open('epubDB',1);
+    const req = indexedDB.open('EPUB_DB',1);
 
-    request.onupgradeneeded = e=>{
+    req.onupgradeneeded = e=>{
       const db = e.target.result;
-      db.createObjectStore('books');
+      db.createObjectStore('store');
     };
 
-    request.onsuccess = e=>{
+    req.onsuccess = e=>{
       db = e.target.result;
       resolve(db);
     };
 
-    request.onerror = ()=>reject('DB error');
+    req.onerror = ()=>reject('DB error');
   });
 }
 
-function saveToDB(key,data){
+function dbSet(key,val){
   return new Promise((resolve,reject)=>{
-    const tx = db.transaction('books','readwrite');
-    const store = tx.objectStore('books');
-    store.put(data,key);
+    const tx = db.transaction('store','readwrite');
+    tx.objectStore('store').put(val,key);
     tx.oncomplete = ()=>resolve();
     tx.onerror = ()=>reject();
   });
 }
 
-function getFromDB(key){
+function dbGet(key){
   return new Promise((resolve,reject)=>{
-    const tx = db.transaction('books','readonly');
-    const store = tx.objectStore('books');
-    const req = store.get(key);
+    const tx = db.transaction('store','readonly');
+    const req = tx.objectStore('store').get(key);
     req.onsuccess = ()=>resolve(req.result);
     req.onerror = ()=>reject();
   });
 }
 
-function clearDB(){
+function dbClear(){
   return new Promise((resolve)=>{
-    const tx = db.transaction('books','readwrite');
-    tx.objectStore('books').clear();
+    const tx = db.transaction('store','readwrite');
+    tx.objectStore('store').clear();
     tx.oncomplete = ()=>resolve();
   });
 }
 
-// -------------------------
-// INIT
-// -------------------------
+// ---------------- INIT ----------------
 (async()=>{
   await openDB();
-  setStatus('Sistema pronto.');
+  setStatus('Sistema pronto');
 
-  const saved = await getFromDB('epub');
+  const saved = await dbGet('chapters');
   if(saved){
-    setStatus('Libro trovato, caricamento...');
-    process(saved);
+    chapters = saved;
+    setStatus('Libro trovato in memoria');
+    show(await dbGet('last') || 0);
   }
 })();
 
-// -------------------------
-// FILE INPUT
-// -------------------------
-
+// ---------------- FILE LOAD (NO LOCALSTORAGE) ----------------
 document.getElementById('fileInput').addEventListener('change', async (e)=>{
   try{
     const file = e.target.files[0];
     if(!file) return;
 
-    setStatus(' Lettura file EPUB...');
+    setStatus('📥 Lettura EPUB...');
 
     const buffer = await file.arrayBuffer();
 
-    setStatus(' Salvataggio nel database...');
-    await saveToDB('epub', buffer);
-
     await process(buffer);
 
-  } catch(err){
+  }catch(err){
     console.error(err);
-    setStatus(' Errore: '+err.message);
+    setStatus('❌ Errore: '+err.message);
   }
 });
 
-// -------------------------
-// PROCESS EPUB
-// -------------------------
+// ---------------- EPUB PROCESS ----------------
 async function process(buffer){
-  try{
-    setStatus(' Estrazione EPUB...');
 
-    const zip = await JSZip.loadAsync(buffer);
-    const parser = new DOMParser();
+  setStatus('📦 Parsing EPUB...');
 
-    const containerXml = await zip.file("META-INF/container.xml").async("text");
-    const containerDoc = parser.parseFromString(containerXml,"application/xml");
+  const zip = await JSZip.loadAsync(buffer);
+  const parser = new DOMParser();
 
-    const rootfile = containerDoc.querySelector("rootfile").getAttribute("full-path");
+  const containerXml = await zip.file("META-INF/container.xml").async("text");
+  const containerDoc = parser.parseFromString(containerXml,"application/xml");
 
-    const opfText = await zip.file(rootfile).async("text");
-    const opfDoc = parser.parseFromString(opfText,"application/xml");
+  const rootfile = containerDoc.querySelector("rootfile").getAttribute("full-path");
 
-    const manifest = {};
-    opfDoc.querySelectorAll("manifest item").forEach(i=>{
-      manifest[i.getAttribute("id")] = i.getAttribute("href");
-    });
+  const opfText = await zip.file(rootfile).async("text");
+  const opfDoc = parser.parseFromString(opfText,"application/xml");
 
-    const spine = [];
-    opfDoc.querySelectorAll("spine itemref").forEach(i=>{
-      spine.push(i.getAttribute("idref"));
-    });
+  const manifest = {};
+  opfDoc.querySelectorAll("manifest item").forEach(i=>{
+    manifest[i.getAttribute("id")] = i.getAttribute("href");
+  });
 
-    const base = rootfile.substring(0, rootfile.lastIndexOf('/')+1);
+  const spine = [];
+  opfDoc.querySelectorAll("spine itemref").forEach(i=>{
+    spine.push(i.getAttribute("idref"));
+  });
 
-    chapters = [];
+  const base = rootfile.substring(0, rootfile.lastIndexOf('/')+1);
 
-    setStatus(' Generazione capitoli...');
+  chapters = [];
 
-    for(const id of spine){
-      const path = base + manifest[id];
-      const file = zip.file(path);
-      if(!file) continue;
+  setStatus('📚 Generazione capitoli...');
 
-      const html = await file.async("text");
-      const clean = new DOMParser().parseFromString(html,"text/html").body.innerHTML;
+  for(const id of spine){
+    const path = base + manifest[id];
+    const file = zip.file(path);
+    if(!file) continue;
 
-      if(clean.trim()) chapters.push(clean);
-    }
+    const html = await file.async("text");
+    const clean = new DOMParser().parseFromString(html,"text/html").body.innerHTML;
 
-    await saveToDB('chapters', chapters);
-
-    setStatus(' Libro caricato ('+chapters.length+' capitoli)');
-
-    show(0);
-
-  } catch(err){
-    console.error(err);
-    setStatus(' Errore parsing EPUB: '+err.message);
+    if(clean.trim()) chapters.push(clean);
   }
+
+  await dbSet('chapters', chapters);
+  await dbSet('last', 0);
+
+  setStatus('✅ Libro caricato ('+chapters.length+' capitoli)');
+
+  show(0);
 }
 
-// -------------------------
-// SHOW
-// -------------------------
+// ---------------- SHOW ----------------
 function show(i){
   current = i;
   document.getElementById('content').innerHTML = chapters[i];
-  saveToDB('last', i);
+  dbSet('last', i);
 }
 
-// -------------------------
-// LOAD FROM DB
-// -------------------------
-async function loadFromDB(){
-  const saved = await getFromDB('chapters');
-  const last = await getFromDB('last');
+// ---------------- LOAD ----------------
+async function loadBook(){
+  const saved = await dbGet('chapters');
+  const last = await dbGet('last');
 
   if(!saved) return setStatus('Nessun libro salvato');
 
@@ -198,23 +174,23 @@ async function loadFromDB(){
   show(last || 0);
 }
 
-// -------------------------
-// RESET
-// -------------------------
-async function clearBook(){
-  await clearDB();
-  chapters=[];
-  document.getElementById('content').innerHTML='Reset completato';
-  setStatus('DB pulito');
+// ---------------- RESET ----------------
+async function resetBook(){
+  await dbClear();
+  chapters = [];
+  document.getElementById('content').innerHTML = 'Reset completato';
+  setStatus('Memoria pulita');
 }
 
-// -------------------------
-// NAV
-// -------------------------
+// ---------------- NAV ----------------
 document.addEventListener('keydown',(e)=>{
   if(e.key==='ArrowRight' && current < chapters.length-1) show(current+1);
   if(e.key==='ArrowLeft' && current > 0) show(current-1);
 });
 
 </script></body>
-</html>
+</html><!-- manifest.json -->{ "name": "EPUB Reader PRO", "short_name": "EPUB", "start_url": "index.html", "display": "standalone", "background_color": "#0f0f0f", "theme_color": "#0f0f0f" }
+
+<!-- sw.js -->self.addEventListener('install', e=>{ e.waitUntil( caches.open('epub-cache').then(c=>c.addAll(['index.html'])) ); });
+
+self.addEventListener('fetch', e=>{ e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))); });
