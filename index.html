@@ -10,7 +10,7 @@
 <style>
 body {
   margin:0;
-  font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", "Noto Color Emoji", sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
   background:#0f0f0f;
   color:#eaeaea;
 }
@@ -42,18 +42,12 @@ button, input {
   background:#111;
   display:flex;
   justify-content:space-between;
-  align-items:center;
   flex-wrap:wrap;
 }
 
 #stats {
   font-size:13px;
   color:#8ab4f8;
-}
-
-.control-group button {
-  padding:6px 10px;
-  font-size:14px;
 }
 
 .nav-bar {
@@ -78,11 +72,9 @@ button, input {
 }
 
 #content img {
-  display:block;
   max-width:100%;
-  height:auto;
+  display:block;
   margin:20px auto;
-  border-radius:8px;
 }
 
 #index {
@@ -95,13 +87,8 @@ button, input {
   background:#111;
   display:none;
   padding:10px;
-  border-top:2px solid #333;
 }
-
-#index button {
-  width:100%;
-  margin:4px 0;
-}
+#index button { width:100%; margin:4px 0; }
 </style>
 </head>
 
@@ -119,8 +106,7 @@ button, input {
 
 <div id="controls">
   <div id="stats">0 / 0 • 0%</div>
-
-  <div class="control-group">
+  <div>
     <button onclick="changeFont(-1)">A-</button>
     <button onclick="changeFont(1)">A+</button>
     <button onclick="changeLine(-0.1)">⇅-</button>
@@ -214,19 +200,17 @@ function dbClear(){
   }
 })();
 
-// ---------------- TEXT ----------------
-function extractText(html){
-  const doc = new DOMParser().parseFromString(html,"text/html");
-  return doc.body.textContent || "";
-}
+// ---------------- FILE ----------------
+document.getElementById("fileInput").addEventListener("change", async e=>{
+  const file = e.target.files[0];
+  if(!file) return;
 
-function countWords(text){
-  return text.trim().split(/\s+/).filter(w=>w).length;
-}
+  const buffer = await file.arrayBuffer();
+  process(buffer);
+});
 
 // ---------------- IMAGE FIX ----------------
-async function fixImages(html, zip, base){
-  const doc = new DOMParser().parseFromString(html,"text/html");
+async function fixImages(doc, zip, base){
   const imgs = doc.querySelectorAll("img");
 
   for(const img of imgs){
@@ -252,19 +236,9 @@ async function fixImages(html, zip, base){
 
     img.src = dataUrl;
   }
-
-  return doc.body.innerHTML;
 }
 
 // ---------------- EPUB ----------------
-document.getElementById("fileInput").addEventListener("change", async e=>{
-  const file = e.target.files[0];
-  if(!file) return;
-
-  const buffer = await file.arrayBuffer();
-  process(buffer);
-});
-
 async function process(buffer){
 
   const zip = await JSZip.loadAsync(buffer);
@@ -288,26 +262,6 @@ async function process(buffer){
 
   const base = rootfile.substring(0, rootfile.lastIndexOf("/") + 1);
 
-  // ---- LOAD CSS EPUB ----
-  let styles = "";
-  const cssPromises = [];
-
-  opf.querySelectorAll("manifest item").forEach(i=>{
-    const href = i.getAttribute("href");
-    if(href && href.endsWith(".css")){
-      const file = zip.file(base + href);
-      if(file){
-        cssPromises.push(
-          file.async("text").then(css=>{
-            styles += css;
-          })
-        );
-      }
-    }
-  });
-
-  await Promise.all(cssPromises);
-
   chapters = [];
   chapterWords = [];
 
@@ -317,24 +271,18 @@ async function process(buffer){
     if(!file) continue;
 
     const html = await file.async("text");
-    const fixed = await fixImages(html, zip, base);
 
-    const doc = new DOMParser().parseFromString(fixed,"application/xhtml+xml");
+    const doc = new DOMParser().parseFromString(html,"text/html");
 
-    const styledHTML = `
-      <style>
-      ${styles}
-      body { background:transparent; color:#eaeaea; }
-      img { max-width:100%; height:auto; }
-      </style>
-      ${doc.body.innerHTML}
-    `;
+    await fixImages(doc, zip, base);
 
-    if(styledHTML.trim()){
-      chapters.push(styledHTML);
+    const content = doc.body.innerHTML;
 
-      const text = extractText(styledHTML);
-      chapterWords.push(countWords(text));
+    if(content.trim()){
+      chapters.push(content);
+
+      const text = doc.body.textContent || "";
+      chapterWords.push(text.split(/\s+/).length);
     }
   }
 
@@ -439,8 +387,6 @@ async function resetBook(){
   chapters=[];
   document.getElementById("content").innerHTML="Reset";
 }
-
-openDB();
 
 </script>
 
