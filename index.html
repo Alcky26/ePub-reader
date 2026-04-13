@@ -3,456 +3,876 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EPUB Reader PRO</title>
-
+<title>EPUB Reader</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <style>
+:root {
+  --bg:        #0e0d0b;
+  --surface:   #161512;
+  --surface2:  #1e1c19;
+  --border:    #2e2b26;
+  --text:      #e8e4dc;
+  --muted:     #7a7468;
+  --accent:    #c9a84c;
+  --accent2:   #8fb07a;
+  --danger:    #c0614a;
+  --radius:    8px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 body {
-  margin:0;
-  font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
-  background:#0f0f0f;
-  color:#eaeaea;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Lora', Georgia, serif;
+  min-height: 100vh;
 }
 
-header {
-  padding:10px;
-  background:#1a1a1a;
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
+/* ── TOPBAR ── */
+#topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  flex-wrap: wrap;
 }
 
-button, input {
-  padding:10px;
-  border:none;
-  border-radius:6px;
-  background:#333;
-  color:white;
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--border); border-color: var(--accent); }
+.btn.accent { border-color: var(--accent); color: var(--accent); }
+.btn.danger { border-color: var(--danger); color: var(--danger); }
+.btn.danger:hover { background: #2a1512; }
+
+.file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface2);
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.file-label:hover { border-color: var(--accent); color: var(--accent); }
+input[type="file"] { display: none; }
+
+#bookTitle {
+  flex: 1;
+  font-family: 'Lora', serif;
+  font-size: 14px;
+  color: var(--muted);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
-#status, #navInfo {
-  padding:6px 12px;
-  font-size:14px;
-  color:#aaa;
+/* ── STATUS BAR ── */
+#statusBar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
 }
 
+#statusMsg { color: var(--accent2); }
+
+#progressBar {
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+}
+#progressFill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width .4s ease;
+}
+
+/* ── CONTROLS ── */
 #controls {
-  padding:8px 12px;
-  background:#111;
-  display:flex;
-  justify-content:space-between;
-  flex-wrap:wrap;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-#stats {
-  font-size:13px;
-  color:#8ab4f8;
-  display:flex;
-  flex-direction:column;
-}
+.ctrl-group { display: flex; gap: 6px; }
 
+.stat-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.stat-label span { color: var(--text); }
+
+/* ── NAV BAR ── */
 .nav-bar {
-  display:flex;
-  justify-content:space-between;
-  padding:10px;
-  background:#111;
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
 }
 
-.nav-bar button {
-  font-size:22px;
-  padding:14px;
-  min-width:80px;
+.nav-btn {
+  flex: 1;
+  max-width: 160px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.nav-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--border); }
+.nav-btn:disabled { opacity: .3; cursor: default; }
+
+#chapterLabel {
+  flex: 1;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── CONTENT ── */
+#contentWrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
 }
 
 #content {
-  padding:20px;
-  max-width:850px;
-  margin:auto;
-  line-height:1.8;
-  font-size:18px;
+  font-size: 18px;
+  line-height: 1.8;
+  color: var(--text);
+}
+
+/* Sanitize book styles */
+#content * {
+  max-width: 100%;
+  font-family: 'Lora', Georgia, serif !important;
+  color: var(--text) !important;
+  background: transparent !important;
 }
 
 #content img {
-  max-width:100%;
-  display:block;
-  margin:20px auto;
+  display: block;
+  margin: 32px auto;
+  border-radius: 4px;
+  opacity: .9;
 }
 
-#index {
-  position:fixed;
-  bottom:0;
-  left:0;
-  right:0;
-  max-height:60vh;
-  overflow:auto;
-  background:#111;
-  display:none;
-  padding:10px;
-}
-#index button {
-  width:100%;
-  margin:4px 0;
+#content h1, #content h2, #content h3,
+#content h4, #content h5, #content h6 {
+  color: var(--accent) !important;
+  margin: 2em 0 .6em;
+  line-height: 1.3;
 }
 
-/* FLOAT COUNTER */
-#floatingCounter {
-  position:fixed;
-  top:10px;
-  right:10px;
-  background:#000000cc;
-  color:#00ffcc;
-  padding:8px 12px;
-  border-radius:8px;
-  font-size:13px;
-  z-index:9999;
-  backdrop-filter: blur(6px);
-  display:none; /* 🔥 nascosto di default */
+#content p { margin-bottom: 1.1em; }
+#content a { color: var(--accent2) !important; }
+
+/* ── TOC DRAWER ── */
+#tocDrawer {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: none;
 }
+#tocBackdrop {
+  position: absolute;
+  inset: 0;
+  background: #000000aa;
+  backdrop-filter: blur(4px);
+}
+#tocPanel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(380px, 92vw);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .3s ease;
+}
+#tocDrawer.open { display: block; }
+#tocDrawer.open #tocPanel { transform: translateX(0); }
+
+#tocHeader {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#tocList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.toc-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-family: 'Lora', serif;
+  font-size: 14px;
+  cursor: pointer;
+  display: block;
+  transition: background .15s;
+  border-bottom: 1px solid var(--border);
+}
+.toc-item:hover { background: var(--surface2); }
+.toc-item.active { color: var(--accent); }
+.toc-item .toc-words {
+  float: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ── FLOAT PILL ── */
+#floatPill {
+  position: fixed;
+  bottom: 20px;
+  right: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  z-index: 150;
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s;
+}
+#floatPill.visible { opacity: 1; }
+
+/* ── EMPTY STATE ── */
+#emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  gap: 12px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  text-align: center;
+}
+#emptyState .big { font-size: 48px; opacity: .3; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 </style>
 </head>
-
 <body>
 
-<div id="floatingCounter">0 parole</div>
+<!-- TOPBAR -->
+<div id="topbar">
+  <label class="file-label" for="fileInput">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    Apri EPUB
+  </label>
+  <input type="file" id="fileInput" accept=".epub">
 
-<header>
-<input type="file" id="fileInput" accept=".epub">
-<button onclick="loadBook()">📂</button>
-<button onclick="resetBook()">🗑</button>
-<button onclick="toggleIndex()">📚</button>
-</header>
+  <button class="btn" onclick="toggleToc()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    Indice
+  </button>
 
-<div id="status">Pronto</div>
-<div id="navInfo"></div>
+  <div class="ctrl-group">
+    <button class="btn" onclick="changeFont(-1)" title="Riduci font">A−</button>
+    <button class="btn" onclick="changeFont(1)"  title="Aumenta font">A+</button>
+    <button class="btn" onclick="changeLine(-0.1)" title="Riduci interlinea">↕−</button>
+    <button class="btn" onclick="changeLine(0.1)"  title="Aumenta interlinea">↕+</button>
+  </div>
 
+  <button class="btn danger" onclick="resetBook()" title="Cancella libro">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+  </button>
+
+  <span id="bookTitle">Nessun libro caricato</span>
+</div>
+
+<!-- STATUS BAR -->
+<div id="statusBar">
+  <span id="statusMsg">Pronto</span>
+  <span id="statsRight">—</span>
+</div>
+<div id="progressBar"><div id="progressFill"></div></div>
+
+<!-- CONTROLS -->
 <div id="controls">
-  <div id="stats">
-    <div id="totalStats">0 / 0 • 0%</div>
-    <div id="chapterStats">Capitolo: 0 parole</div>
-  </div>
-
-  <div>
-    <button onclick="changeFont(-1)">A-</button>
-    <button onclick="changeFont(1)">A+</button>
-    <button onclick="changeLine(-0.1)">⇅-</button>
-    <button onclick="changeLine(0.1)">⇅+</button>
+  <div class="stat-label">
+    <span>Cap. <span id="sChap">—</span></span>
+    <span>Parole cap. <span id="sChapW">—</span></span>
+    <span>Totale <span id="sTot">—</span></span>
   </div>
 </div>
 
+<!-- NAV TOP -->
 <div class="nav-bar">
-<button onclick="prev()">⬅️</button>
-<button onclick="next()">➡️</button>
+  <button class="nav-btn" id="btnPrevTop" onclick="prev()" disabled>← Precedente</button>
+  <span id="chapterLabel">—</span>
+  <button class="nav-btn" id="btnNextTop" onclick="next()" disabled>Successivo →</button>
 </div>
 
-<main>
-<article id="content">Carica un EPUB</article>
-</main>
-
-<div class="nav-bar">
-<button onclick="prev()">⬅️</button>
-<button onclick="next()">➡️</button>
+<!-- CONTENT -->
+<div id="contentWrap">
+  <article id="content" lang="it">
+    <div id="emptyState">
+      <div class="big">📖</div>
+      <div>Apri un file EPUB per iniziare</div>
+      <div style="color:var(--border);font-size:10px">Il libro viene salvato localmente — funziona offline</div>
+    </div>
+  </article>
 </div>
 
-<div id="index"></div>
+<!-- NAV BOTTOM -->
+<div class="nav-bar">
+  <button class="nav-btn" id="btnPrevBot" onclick="prev()" disabled>← Precedente</button>
+  <span></span>
+  <button class="nav-btn" id="btnNextBot" onclick="next()" disabled>Successivo →</button>
+</div>
+
+<!-- FLOAT PILL -->
+<div id="floatPill">0 parole rimaste</div>
+
+<!-- TOC DRAWER -->
+<div id="tocDrawer">
+  <div id="tocBackdrop" onclick="toggleToc()"></div>
+  <div id="tocPanel">
+    <div id="tocHeader">
+      <span>INDICE DEI CAPITOLI</span>
+      <button class="btn" onclick="toggleToc()">✕</button>
+    </div>
+    <div id="tocList"></div>
+  </div>
+</div>
+
 
 <script>
-
+/* =========================================================
+   STATE
+   ========================================================= */
 let db;
-let chapters = [];
-let current = 0;
+let chapters    = [];   // array di { title, html }
+let chapterWords = [];  // parole per capitolo
+let totalWords  = 0;
+let current     = 0;
+let bookLang    = "it";
 
-let chapterWords = [];
-let totalWords = 0;
-
-let currentChapterTotal = 0;
-
-let fontSize = parseInt(localStorage.getItem("fontSize")) || 18;
+let fontSize   = parseInt(localStorage.getItem("fontSize"))    || 18;
 let lineHeight = parseFloat(localStorage.getItem("lineHeight")) || 1.8;
 
-// ---------------- DB ----------------
+
+/* =========================================================
+   INDEXEDDB  (semplificata: un libro alla volta)
+   ========================================================= */
 function openDB(){
   return new Promise(resolve=>{
-    const req = indexedDB.open("EPUB_DB",1);
+    const req = indexedDB.open("EPUB_DB", 2);
     req.onupgradeneeded = e=>{
-      e.target.result.createObjectStore("store");
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains("store"))
+        db.createObjectStore("store");
     };
-    req.onsuccess = e=>{
-      db = e.target.result;
-      resolve();
-    };
+    req.onsuccess = e=>{ db = e.target.result; resolve(); };
   });
 }
+const dbSet  = (k,v)=>new Promise(r=>{ const tx=db.transaction("store","readwrite"); tx.objectStore("store").put(v,k); tx.oncomplete=r; });
+const dbGet  = (k)  =>new Promise(r=>{ const tx=db.transaction("store","readonly");  const req=tx.objectStore("store").get(k); req.onsuccess=()=>r(req.result); });
+const dbClear= ()   =>new Promise(r=>{ const tx=db.transaction("store","readwrite"); tx.objectStore("store").clear(); tx.oncomplete=r; });
 
-function dbSet(k,v){
-  return new Promise(res=>{
-    const tx = db.transaction("store","readwrite");
-    tx.objectStore("store").put(v,k);
-    tx.oncomplete = res;
-  });
-}
 
-function dbGet(k){
-  return new Promise(res=>{
-    const tx = db.transaction("store","readonly");
-    const r = tx.objectStore("store").get(k);
-    r.onsuccess = ()=>res(r.result);
-  });
-}
-
-function dbClear(){
-  return new Promise(res=>{
-    const tx = db.transaction("store","readwrite");
-    tx.objectStore("store").clear();
-    tx.oncomplete = res;
-  });
-}
-
-// ---------------- INIT ----------------
+/* =========================================================
+   INIT
+   ========================================================= */
 (async()=>{
   await openDB();
   applyStyle();
 
   const saved = await dbGet("chapters");
-  const savedWords = await dbGet("chapterWords");
-  const savedTotal = await dbGet("totalWords");
-
-  if(saved){
-    chapters = saved;
-    chapterWords = savedWords || [];
-    totalWords = savedTotal || 0;
-
-    const last = await dbGet("last") || 0;
-    renderIndex();
+  if(saved && saved.length){
+    chapters     = saved;
+    chapterWords = await dbGet("chapterWords") || [];
+    totalWords   = await dbGet("totalWords")   || 0;
+    bookLang     = await dbGet("bookLang")     || "it";
+    const last   = await dbGet("last")         || 0;
+    renderToc();
     show(last);
   }
 })();
 
-// ---------------- FILE ----------------
+
+/* =========================================================
+   FILE INPUT
+   ========================================================= */
 document.getElementById("fileInput").addEventListener("change", async e=>{
   const file = e.target.files[0];
   if(!file) return;
-
-  const buffer = await file.arrayBuffer();
-  process(buffer);
+  setStatus("Caricamento…");
+  try {
+    const buf = await file.arrayBuffer();
+    await processEpub(buf, file.name);
+  } catch(err){
+    setStatus("Errore: " + err.message);
+    console.error(err);
+  }
+  // reset input so same file can be reloaded
+  e.target.value = "";
 });
 
-// ---------------- IMAGE FIX ----------------
+
+/* =========================================================
+   IMAGE FIX  (gestisce path relativi, ../ e assoluti)
+   ========================================================= */
 async function fixImages(doc, zip, base){
-  const imgs = doc.querySelectorAll("img");
+  for(const img of doc.querySelectorAll("img, image")){
+    const attr = img.tagName === "image" ? "href" : "src";
+    let src = img.getAttribute(attr) || img.getAttribute("xlink:href") || "";
+    if(!src || src.startsWith("data:") || src.startsWith("http")) continue;
 
-  for(const img of imgs){
-    let src = img.getAttribute("src");
-    if(!src) continue;
-
-    let path = base + src;
-
-    while(path.includes("../")){
-      path = path.replace(/[^\/]+\/\.\.\//,"");
-    }
-
-    const file = zip.file(path);
+    // risolvi path relativo rispetto alla base
+    let path = resolvePath(base, src);
+    const file = zip.file(path)
+               || zip.file(path.replace(/^\//, ""))
+               || findInsensitive(zip, path);
     if(!file) continue;
 
-    const blob = await file.async("blob");
-
-    const dataUrl = await new Promise(res=>{
-      const r = new FileReader();
-      r.onload = ()=>res(r.result);
-      r.readAsDataURL(blob);
-    });
-
-    img.src = dataUrl;
+    try {
+      const blob    = await file.async("blob");
+      const dataUrl = await blobToDataUrl(blob);
+      img.setAttribute(attr, dataUrl);
+      if(img.getAttribute("xlink:href")) img.setAttribute("xlink:href", dataUrl);
+    } catch(_){}
   }
 }
 
-// ---------------- EPUB ----------------
-async function process(buffer){
+function resolvePath(base, href){
+  if(href.startsWith("/")) return href.slice(1);
+  let parts = (base + href).split("/");
+  const out = [];
+  for(const p of parts){
+    if(p === "..") out.pop();
+    else if(p !== ".") out.push(p);
+  }
+  return out.join("/");
+}
 
-  const zip = await JSZip.loadAsync(buffer);
+function findInsensitive(zip, path){
+  const low = path.toLowerCase();
+  const key = Object.keys(zip.files).find(k=>k.toLowerCase()===low);
+  return key ? zip.file(key) : null;
+}
+
+const blobToDataUrl = blob=>new Promise((res,rej)=>{
+  const r=new FileReader();
+  r.onload=()=>res(r.result);
+  r.onerror=()=>rej(new Error("FileReader failed"));
+  r.readAsDataURL(blob);
+});
+
+
+/* =========================================================
+   TOC PARSING  (nav.xhtml > toc.ncx > fallback spine numerico)
+   ========================================================= */
+function parseToc(opf, zip, base){
   const parser = new DOMParser();
 
-  const container = await zip.file("META-INF/container.xml").async("text");
-  const rootfile = parser.parseFromString(container,"application/xml")
-    .querySelector("rootfile").getAttribute("full-path");
+  // 1. Cerca nav.xhtml (EPUB3)
+  const navItem = [...opf.querySelectorAll("manifest item")]
+    .find(i=> i.getAttribute("properties")?.includes("nav")
+            || (i.getAttribute("media-type")||"").includes("xhtml")
+               && (i.getAttribute("href")||"").toLowerCase().includes("nav"));
 
-  const opf = parser.parseFromString(await zip.file(rootfile).async("text"),"application/xml");
+  if(navItem){
+    const navPath = base + navItem.getAttribute("href");
+    const navFile = zip.file(navPath) || findInsensitive(zip, navPath);
+    if(navFile){
+      try {
+        const navDoc = parser.parseFromString(
+          zip.files[navFile.name]?._data || "", "text/html");
+        // non usiamo async qui — restituiamo i titoli dai toc item
+        // (viene chiamato in modo sincrono dall'ePub già in RAM)
+        const navText = navFile.name; // segnaposto; vedi sotto
+      } catch(_){}
+    }
+  }
 
+  // 2. Cerca toc.ncx (EPUB2)
+  const ncxItem = [...opf.querySelectorAll("manifest item")]
+    .find(i=>(i.getAttribute("media-type")||"").includes("ncx")
+           || (i.getAttribute("href")||"").toLowerCase().endsWith(".ncx"));
+
+  if(ncxItem){
+    const ncxPath = base + ncxItem.getAttribute("href");
+    const ncxFile = zip.file(ncxPath) || findInsensitive(zip, ncxPath);
+    if(ncxFile) return { type:"ncx", file: ncxFile };
+  }
+
+  return null;
+}
+
+async function buildTitleMap(tocInfo, zip, spineIds, manifest, base){
+  // Mappa idref → titolo
+  const map = {};
+  if(!tocInfo) return map;
+  const parser = new DOMParser();
+
+  if(tocInfo.type === "ncx"){
+    const text = await tocInfo.file.async("text");
+    const ncx  = parser.parseFromString(text, "application/xml");
+    ncx.querySelectorAll("navPoint").forEach(np=>{
+      const label = np.querySelector("navLabel text")?.textContent?.trim();
+      const src   = np.querySelector("content")?.getAttribute("src")?.split("#")[0];
+      if(label && src){
+        // associa il src al corrispondente idref nello spine
+        const href = src.split("/").pop();
+        const id   = Object.entries(manifest).find(([,v])=>v.split("/").pop()===href)?.[0];
+        if(id) map[id] = label;
+      }
+    });
+  }
+
+  // nav.xhtml
+  if(tocInfo.type === "nav"){
+    const text  = await tocInfo.file.async("text");
+    const navDoc = parser.parseFromString(text, "text/html");
+    navDoc.querySelectorAll("nav[epub\\:type='toc'] a, nav a").forEach(a=>{
+      const label = a.textContent.trim();
+      const href  = a.getAttribute("href")?.split("#")[0];
+      if(label && href){
+        const plain = href.split("/").pop();
+        const id = Object.entries(manifest).find(([,v])=>v.split("/").pop()===plain)?.[0];
+        if(id) map[id] = label;
+      }
+    });
+  }
+
+  return map;
+}
+
+
+/* =========================================================
+   EPUB PARSER
+   ========================================================= */
+async function processEpub(buffer, filename){
+  const zip    = await JSZip.loadAsync(buffer);
+  const parser = new DOMParser();
+
+  // container.xml → OPF path
+  const containerFile = zip.file("META-INF/container.xml")
+    || findInsensitive(zip, "META-INF/container.xml");
+  if(!containerFile) throw new Error("container.xml non trovato");
+
+  const containerXml = parser.parseFromString(
+    await containerFile.async("text"), "application/xml");
+  const rootPath = containerXml.querySelector("rootfile")?.getAttribute("full-path");
+  if(!rootPath) throw new Error("OPF path non trovato");
+
+  const opfFile = zip.file(rootPath) || findInsensitive(zip, rootPath);
+  if(!opfFile) throw new Error("OPF non trovato: " + rootPath);
+
+  const opf  = parser.parseFromString(await opfFile.async("text"), "application/xml");
+  const base = rootPath.substring(0, rootPath.lastIndexOf("/") + 1);
+
+  // lingua del libro
+  bookLang = opf.querySelector("language")?.textContent?.trim() || "it";
+
+  // manifest
   const manifest = {};
   opf.querySelectorAll("manifest item").forEach(i=>{
     manifest[i.getAttribute("id")] = i.getAttribute("href");
   });
 
-  const spine = [];
+  // spine
+  const spineIds = [];
   opf.querySelectorAll("spine itemref").forEach(i=>{
-    spine.push(i.getAttribute("idref"));
+    spineIds.push(i.getAttribute("idref"));
   });
 
-  const base = rootfile.substring(0, rootfile.lastIndexOf("/") + 1);
+  // TOC
+  const tocInfo  = parseToc(opf, zip, base);
 
-  chapters = [];
+  // correggi parseToc per nav
+  const navItem2 = [...opf.querySelectorAll("manifest item")]
+    .find(i=> i.getAttribute("properties")?.includes("nav"));
+  let tocInfoFinal = tocInfo;
+  if(!tocInfoFinal && navItem2){
+    const navPath = base + navItem2.getAttribute("href");
+    const nf = zip.file(navPath) || findInsensitive(zip, navPath);
+    if(nf) tocInfoFinal = { type:"nav", file: nf };
+  }
+
+  const titleMap = await buildTitleMap(tocInfoFinal, zip, spineIds, manifest, base);
+
+  // carica capitoli
+  chapters     = [];
   chapterWords = [];
 
-  for(const id of spine){
+  for(let idx=0; idx<spineIds.length; idx++){
+    const id   = spineIds[idx];
+    const href = manifest[id];
+    if(!href) continue;
 
-    const file = zip.file(base + manifest[id]);
-    if(!file) continue;
+    const chFile = zip.file(base + href) || findInsensitive(zip, base + href);
+    if(!chFile) continue;
 
-    const html = await file.async("text");
+    const html  = await chFile.async("text");
+    const doc   = parser.parseFromString(html, "text/html");
 
-    const doc = new DOMParser().parseFromString(html,"text/html");
+    await fixImages(doc, zip, base + href.substring(0, href.lastIndexOf("/")+1));
 
-    await fixImages(doc, zip, base);
+    const bodyHtml = doc.body?.innerHTML || "";
+    if(!bodyHtml.trim()) continue;
 
-    const content = doc.body.innerHTML;
+    const words = (doc.body?.textContent || "").split(/\s+/).filter(Boolean).length;
 
-    if(content.trim()){
-      chapters.push(content);
+    // titolo: da TOC map, oppure primo h1/h2/h3, oppure "Capitolo N"
+    const titleFromDoc = doc.querySelector("h1,h2,h3")?.textContent?.trim();
+    const title = titleMap[id]
+               || titleFromDoc
+               || ("Capitolo " + (chapters.length + 1));
 
-      const text = doc.body.textContent || "";
-      chapterWords.push(text.split(/\s+/).filter(w=>w).length);
-    }
+    chapters.push({ title, html: bodyHtml });
+    chapterWords.push(words);
+
+    setStatus(`Caricamento… ${chapters.length} capitoli`);
   }
+
+  if(!chapters.length) throw new Error("Nessun contenuto trovato nell'EPUB");
 
   totalWords = chapterWords.reduce((a,b)=>a+b,0);
 
-  await dbSet("chapters", chapters);
+  // salva (sovrascrive sempre)
+  await dbClear();
+  await dbSet("chapters",     chapters);
   await dbSet("chapterWords", chapterWords);
-  await dbSet("totalWords", totalWords);
-  await dbSet("last", 0);
+  await dbSet("totalWords",   totalWords);
+  await dbSet("bookLang",     bookLang);
+  await dbSet("last",         0);
 
-  renderIndex();
+  // titolo libro
+  const opfTitle = opf.querySelector("title")?.textContent?.trim();
+  document.getElementById("bookTitle").textContent =
+    opfTitle || filename.replace(".epub","");
+
+  renderToc();
   show(0);
+  setStatus("Libro caricato — " + chapters.length + " capitoli");
 }
 
-// ---------------- NAV ----------------
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
 function show(i){
+  if(i < 0 || i >= chapters.length) return;
   current = i;
 
-  document.getElementById("content").innerHTML = chapters[i];
+  const content = document.getElementById("content");
+  content.innerHTML = chapters[i].html;
+  content.lang      = bookLang;
+
   dbSet("last", i);
 
-  document.getElementById("navInfo").innerText =
-    "Capitolo " + (i+1) + " / " + chapters.length;
+  // nav buttons
+  document.getElementById("btnPrevTop").disabled = (i === 0);
+  document.getElementById("btnPrevBot").disabled = (i === 0);
+  document.getElementById("btnNextTop").disabled = (i === chapters.length-1);
+  document.getElementById("btnNextBot").disabled = (i === chapters.length-1);
 
-  currentChapterTotal = chapterWords[i] || 0;
+  document.getElementById("chapterLabel").textContent =
+    (i+1) + " / " + chapters.length + "  —  " + chapters[i].title;
 
+  // active toc item
+  document.querySelectorAll(".toc-item").forEach((el,j)=>{
+    el.classList.toggle("active", j===i);
+  });
+
+  applyStyle();
   updateStats();
-  applyStyle();
-  updateFloating();
-
-  window.scrollTo(0,0);
+  updateFloatPill();
+  window.scrollTo({top:0});
 }
 
-function prev(){ if(current>0) show(current-1); }
-function next(){ if(current<chapters.length-1) show(current+1); }
+function prev(){ show(current - 1); }
+function next(){ show(current + 1); }
 
-// ---------------- STATS ----------------
+
+/* =========================================================
+   STATS
+   ========================================================= */
 function updateStats(){
+  if(!chapters.length) return;
+
   let read = 0;
-  for(let i=0;i<=current;i++) read += chapterWords[i] || 0;
+  for(let i=0;i<=current;i++) read += chapterWords[i]||0;
+  const pct = totalWords ? ((read/totalWords)*100).toFixed(1) : 0;
 
-  const percent = totalWords ? ((read/totalWords)*100).toFixed(1) : 0;
+  document.getElementById("sChap").textContent   = (current+1) + " / " + chapters.length;
+  document.getElementById("sChapW").textContent  = (chapterWords[current]||0).toLocaleString();
+  document.getElementById("sTot").textContent    = read.toLocaleString() + " / " + totalWords.toLocaleString() + " (" + pct + "%)";
 
-  document.getElementById("totalStats").innerText =
-    `${read} / ${totalWords} • ${percent}%`;
+  document.getElementById("statsRight").textContent =
+    read.toLocaleString() + " / " + totalWords.toLocaleString() + " parole lette";
 
-  document.getElementById("chapterStats").innerText =
-    `Capitolo: ${chapterWords[current] || 0} parole`;
+  document.getElementById("progressFill").style.width = pct + "%";
 }
 
-// ---------------- FLOAT COUNTER ----------------
-window.addEventListener("scroll", updateFloating);
 
-function updateFloating(){
+/* =========================================================
+   FLOAT PILL (parole rimaste nel capitolo)
+   ========================================================= */
+window.addEventListener("scroll", updateFloatPill);
 
-  const el = document.getElementById("floatingCounter");
-  const doc = document.documentElement;
+function updateFloatPill(){
+  const pill = document.getElementById("floatPill");
+  const doc  = document.documentElement;
+  const st   = doc.scrollTop || document.body.scrollTop;
+  const sh   = doc.scrollHeight - doc.clientHeight;
+  const prog = sh > 0 ? st/sh : 0;
 
-  const scrollTop = doc.scrollTop || document.body.scrollTop;
-  const scrollHeight = doc.scrollHeight - doc.clientHeight;
+  if(prog < 0.03){ pill.classList.remove("visible"); return; }
+  pill.classList.add("visible");
 
-  let progress = scrollHeight > 0 ? scrollTop / scrollHeight : 0;
-
-  // 🔥 mostra solo dopo 2%
-  if(progress < 0.02){
-    el.style.display = "none";
-    return;
-  } else {
-    el.style.display = "block";
-  }
-
-  const read = Math.floor(currentChapterTotal * progress);
-  const remaining = Math.max(currentChapterTotal - read, 0);
-
-  el.innerText = `${remaining} parole rimaste`;
+  const total     = chapterWords[current] || 0;
+  const remaining = Math.max(Math.floor(total * (1-prog)), 0);
+  pill.textContent = remaining.toLocaleString() + " parole rimaste";
 }
 
-// ---------------- STYLE ----------------
-function applyStyle(){
-  const c = document.getElementById("content");
-  c.style.fontSize = fontSize + "px";
-  c.style.lineHeight = lineHeight;
-}
 
-function changeFont(v){
-  fontSize += v;
-  localStorage.setItem("fontSize", fontSize);
-  applyStyle();
-}
-
-function changeLine(v){
-  lineHeight += v;
-  localStorage.setItem("lineHeight", lineHeight);
-  applyStyle();
-}
-
-// ---------------- INDEX ----------------
-function renderIndex(){
-  const el = document.getElementById("index");
-  el.innerHTML = "";
-
-  chapters.forEach((_,i)=>{
-    const b = document.createElement("button");
-    b.innerText = "Capitolo " + (i+1);
-    b.onclick = ()=>{
-      show(i);
-      toggleIndex();
-    };
-    el.appendChild(b);
+/* =========================================================
+   TOC DRAWER
+   ========================================================= */
+function renderToc(){
+  const list = document.getElementById("tocList");
+  list.innerHTML = "";
+  chapters.forEach((ch,i)=>{
+    const btn = document.createElement("button");
+    btn.className = "toc-item" + (i===current?" active":"");
+    btn.innerHTML = `${ch.title}<span class="toc-words">${(chapterWords[i]||0).toLocaleString()} p.</span>`;
+    btn.onclick = ()=>{ show(i); toggleToc(); };
+    list.appendChild(btn);
   });
 }
 
-function toggleIndex(){
-  const el = document.getElementById("index");
-  el.style.display = el.style.display==="block" ? "none" : "block";
+function toggleToc(){
+  const d = document.getElementById("tocDrawer");
+  d.classList.toggle("open");
 }
 
-// ---------------- LOAD / RESET ----------------
-async function loadBook(){
-  const saved = await dbGet("chapters");
-  const last = await dbGet("last");
 
-  const savedWords = await dbGet("chapterWords");
-  const savedTotal = await dbGet("totalWords");
-
-  if(!saved) return;
-
-  chapters = saved;
-  chapterWords = savedWords || [];
-  totalWords = savedTotal || 0;
-
-  renderIndex();
-  show(last || 0);
+/* =========================================================
+   STYLE
+   ========================================================= */
+function applyStyle(){
+  const c = document.getElementById("content");
+  c.style.fontSize   = fontSize + "px";
+  c.style.lineHeight = lineHeight;
 }
+function changeFont(v){ fontSize = Math.max(12, Math.min(32, fontSize+v)); localStorage.setItem("fontSize",fontSize); applyStyle(); }
+function changeLine(v){ lineHeight = Math.max(1.2, Math.min(2.8, +(lineHeight+v).toFixed(1))); localStorage.setItem("lineHeight",lineHeight); applyStyle(); }
 
+
+/* =========================================================
+   STATUS
+   ========================================================= */
+function setStatus(msg){ document.getElementById("statusMsg").textContent = msg; }
+
+
+/* =========================================================
+   RESET
+   ========================================================= */
 async function resetBook(){
+  if(!confirm("Cancellare il libro salvato?")) return;
   await dbClear();
-  chapters=[];
-  document.getElementById("content").innerHTML="Reset";
+  chapters = []; chapterWords = []; totalWords = 0; current = 0;
+  document.getElementById("content").innerHTML = `
+    <div id="emptyState">
+      <div class="big">📖</div>
+      <div>Apri un file EPUB per iniziare</div>
+    </div>`;
+  document.getElementById("bookTitle").textContent = "Nessun libro caricato";
+  document.getElementById("tocList").innerHTML = "";
+  document.getElementById("chapterLabel").textContent = "—";
+  document.getElementById("progressFill").style.width = "0%";
+  document.getElementById("statsRight").textContent = "—";
+  ["sChap","sChapW","sTot"].forEach(id=>document.getElementById(id).textContent="—");
+  ["btnPrevTop","btnPrevBot","btnNextTop","btnNextBot"]
+    .forEach(id=>document.getElementById(id).disabled=true);
+  setStatus("Pronto");
 }
-
 </script>
-
 </body>
 </html>
