@@ -79,6 +79,7 @@ button, input {
   margin:20px auto;
 }
 
+/* INDICE */
 #index {
   position:fixed;
   bottom:0;
@@ -90,11 +91,30 @@ button, input {
   display:none;
   padding:10px;
 }
-#index button { width:100%; margin:4px 0; }
+#index button {
+  width:100%;
+  margin:4px 0;
+}
+
+/* COUNTER FLOAT */
+#floatingCounter {
+  position:fixed;
+  top:10px;
+  right:10px;
+  background:#000000cc;
+  color:#00ffcc;
+  padding:8px 12px;
+  border-radius:8px;
+  font-size:13px;
+  z-index:9999;
+  backdrop-filter: blur(6px);
+}
 </style>
 </head>
 
 <body>
+
+<div id="floatingCounter">0 parole</div>
 
 <header>
 <input type="file" id="fileInput" accept=".epub">
@@ -144,6 +164,8 @@ let current = 0;
 
 let chapterWords = [];
 let totalWords = 0;
+
+let currentChapterTotal = 0;
 
 let fontSize = parseInt(localStorage.getItem("fontSize")) || 18;
 let lineHeight = parseFloat(localStorage.getItem("lineHeight")) || 1.8;
@@ -306,14 +328,20 @@ async function process(buffer){
 // ---------------- NAV ----------------
 function show(i){
   current = i;
+
   document.getElementById("content").innerHTML = chapters[i];
   dbSet("last", i);
 
   document.getElementById("navInfo").innerText =
     "Capitolo " + (i+1) + " / " + chapters.length;
 
+  currentChapterTotal = chapterWords[i] || 0;
+
   updateStats();
   applyStyle();
+  updateFloating();
+
+  window.scrollTo(0,0);
 }
 
 function prev(){ if(current>0) show(current-1); }
@@ -331,6 +359,28 @@ function updateStats(){
 
   document.getElementById("chapterStats").innerText =
     `Capitolo: ${chapterWords[current] || 0} parole`;
+}
+
+// ---------------- FLOAT COUNTER ----------------
+window.addEventListener("scroll", updateFloating);
+
+function updateFloating(){
+
+  const doc = document.documentElement;
+
+  const scrollTop = doc.scrollTop || document.body.scrollTop;
+  const scrollHeight = doc.scrollHeight - doc.clientHeight;
+
+  let progress = scrollHeight > 0 ? scrollTop / scrollHeight : 0;
+
+  if(progress < 0) progress = 0;
+  if(progress > 1) progress = 1;
+
+  const read = Math.floor(currentChapterTotal * progress);
+  const remaining = Math.max(currentChapterTotal - read, 0);
+
+  document.getElementById("floatingCounter").innerText =
+    `${remaining} parole rimaste`;
 }
 
 // ---------------- STYLE ----------------
