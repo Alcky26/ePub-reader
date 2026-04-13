@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>EPUB Reader</title>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -19,6 +19,11 @@
   --accent2:   #8fb07a;
   --danger:    #c0614a;
   --radius:    8px;
+  /* Safe area per notch su mobile */
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left, 0px);
+  --safe-right:  env(safe-area-inset-right, 0px);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -28,6 +33,13 @@ body {
   color: var(--text);
   font-family: 'Lora', Georgia, serif;
   min-height: 100vh;
+}
+
+/* ── FOCUS STYLES per accessibilità ── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
 }
 
 /* ── TOPBAR ── */
@@ -41,6 +53,8 @@ body {
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
+  padding-left: calc(16px + var(--safe-left));
+  padding-right: calc(16px + var(--safe-right));
   flex-wrap: wrap;
 }
 
@@ -58,11 +72,19 @@ body {
   cursor: pointer;
   transition: border-color .2s, background .2s;
   white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .btn:hover { background: var(--border); border-color: var(--accent); }
 .btn.accent { border-color: var(--accent); color: var(--accent); }
 .btn.danger { border-color: var(--danger); color: var(--danger); }
 .btn.danger:hover { background: #2a1512; }
+
+/* Pulsanti più grandi su mobile per tap target */
+@media (max-width: 640px) {
+  .btn { padding: 9px 12px; font-size: 11px; }
+  .nav-btn { padding: 12px 10px; font-size: 12px; }
+}
 
 .file-label {
   display: inline-flex;
@@ -77,6 +99,8 @@ body {
   font-size: 12px;
   cursor: pointer;
   transition: border-color .2s, color .2s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .file-label:hover { border-color: var(--accent); color: var(--accent); }
 input[type="file"] { display: none; }
@@ -98,6 +122,8 @@ input[type="file"] { display: none; }
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   padding: 6px 16px;
+  padding-left: calc(16px + var(--safe-left));
+  padding-right: calc(16px + var(--safe-right));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -127,6 +153,8 @@ input[type="file"] { display: none; }
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   padding: 8px 16px;
+  padding-left: calc(16px + var(--safe-left));
+  padding-right: calc(16px + var(--safe-right));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -134,7 +162,7 @@ input[type="file"] { display: none; }
   flex-wrap: wrap;
 }
 
-.ctrl-group { display: flex; gap: 6px; }
+.ctrl-group { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .stat-label {
   font-family: 'JetBrains Mono', monospace;
@@ -143,6 +171,7 @@ input[type="file"] { display: none; }
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-wrap: wrap;
 }
 .stat-label span { color: var(--text); }
 
@@ -151,6 +180,8 @@ input[type="file"] { display: none; }
   display: flex;
   justify-content: space-between;
   padding: 8px 16px;
+  padding-left: calc(16px + var(--safe-left));
+  padding-right: calc(16px + var(--safe-right));
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   gap: 8px;
@@ -168,6 +199,8 @@ input[type="file"] { display: none; }
   font-size: 13px;
   cursor: pointer;
   transition: border-color .2s, background .2s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .nav-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--border); }
 .nav-btn:disabled { opacity: .3; cursor: default; }
@@ -181,6 +214,11 @@ input[type="file"] { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  padding: 0 4px;
 }
 
 /* ── CONTENT ── */
@@ -188,6 +226,9 @@ input[type="file"] { display: none; }
   max-width: 720px;
   margin: 0 auto;
   padding: 40px 24px 80px;
+  padding-left: calc(24px + var(--safe-left));
+  padding-right: calc(24px + var(--safe-right));
+  padding-bottom: calc(80px + var(--safe-bottom));
 }
 
 #content {
@@ -196,9 +237,12 @@ input[type="file"] { display: none; }
   color: var(--text);
 }
 
-/* Sanitize book styles — NO !important su color/background:
-   Edge Read Aloud inietta span con stili inline per l'evidenziazione;
-   qualsiasi !important su color o background li renderebbe invisibili. */
+/*
+  NOTA COMPATIBILITÀ EDGE READ ALOUD:
+  Edge inietta <span> con stili inline per l'evidenziazione della parola letta.
+  Non usare !important su color o background: renderebbe invisibili gli highlight.
+  Usiamo specificità CSS normale per sovrascrivere gli stili EPUB.
+*/
 #content * {
   max-width: 100%;
 }
@@ -211,11 +255,24 @@ input[type="file"] { display: none; }
   background: transparent;
 }
 
+/* Grassetto ed italico del libro originale devono sopravvivere */
+#content b, #content strong { font-weight: 600; }
+#content i, #content em { font-style: italic; }
+
 #content img {
   display: block;
   margin: 32px auto;
   border-radius: 4px;
   opacity: .9;
+  height: auto;
+}
+
+/* SVG inline */
+#content svg {
+  display: block;
+  margin: 32px auto;
+  max-width: 100%;
+  height: auto;
 }
 
 #content h1, #content h2, #content h3,
@@ -227,30 +284,75 @@ input[type="file"] { display: none; }
   line-height: 1.3;
 }
 
-#content p { margin-bottom: 1.1em; }
-#content a { color: var(--accent2); }
-
-/* Compensa l'header sticky quando Edge fa scroll alla parola corrente */
-html {
-  scroll-padding-top: 120px;
+#content p        { margin-bottom: 1.1em; }
+#content ul, #content ol { margin: 1em 0 1em 1.5em; }
+#content li       { margin-bottom: .4em; }
+#content blockquote {
+  margin: 1.5em 0;
+  padding: .75em 1em;
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
 }
-#content p, #content span, #content div {
-  scroll-margin-top: 120px;
+#content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  font-size: .9em;
+}
+#content td, #content th {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+}
+#content th { color: var(--accent); background: var(--surface2); }
+
+/* Link interni all'app — stile uniforme */
+#content a {
+  color: var(--accent2);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color .2s;
+}
+#content a:hover { text-decoration-color: var(--accent2); }
+
+/* Compensazione scroll per Edge Read Aloud e link ancore interni */
+html { scroll-padding-top: 130px; }
+#content p, #content span, #content div, #content h1,
+#content h2, #content h3, #content h4 {
+  scroll-margin-top: 130px;
 }
 
 /* ── TOC DRAWER ── */
+/*
+  FIX BUG: il codice originale usava display:none sul drawer.
+  display:none impedisce le transizioni CSS: il pannello appariva
+  senza animazione. Si usa visibility + pointer-events con
+  transition delay per permettere l'animazione di chiusura.
+*/
 #tocDrawer {
   position: fixed;
   inset: 0;
   z-index: 300;
-  display: none;
+  pointer-events: none;
+  visibility: hidden;
+  /* Ritarda il nascondimento di visibility finché l'animazione è finita */
+  transition: visibility 0s linear .3s;
 }
+#tocDrawer.open {
+  pointer-events: all;
+  visibility: visible;
+  transition: visibility 0s linear 0s;
+}
+
 #tocBackdrop {
   position: absolute;
   inset: 0;
   background: #000000aa;
   backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity .3s ease;
 }
+#tocDrawer.open #tocBackdrop { opacity: 1; }
+
 #tocPanel {
   position: absolute;
   top: 0;
@@ -264,7 +366,6 @@ html {
   transform: translateX(100%);
   transition: transform .3s ease;
 }
-#tocDrawer.open { display: block; }
 #tocDrawer.open #tocPanel { transform: translateX(0); }
 
 #tocHeader {
@@ -282,6 +383,7 @@ html {
   flex: 1;
   overflow-y: auto;
   padding: 8px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .toc-item {
@@ -298,6 +400,7 @@ html {
   display: block;
   transition: background .15s;
   border-bottom: 1px solid var(--border);
+  -webkit-tap-highlight-color: transparent;
 }
 .toc-item:hover { background: var(--surface2); }
 .toc-item.active { color: var(--accent); }
@@ -324,28 +427,79 @@ html {
 }
 #emptyState .big { font-size: 48px; opacity: .3; }
 
+/* ── LOADING OVERLAY (non copre pulsanti, sta sotto la topbar) ── */
+#loadingOverlay {
+  display: none;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 150;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  box-shadow: 0 4px 20px #0008;
+  animation: pulse 1.5s ease infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* Riduce animazioni se l'utente lo preferisce */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
 </style>
 </head>
 <body>
 
 <!-- TOPBAR -->
-<div id="topbar">
-  <label class="file-label" for="fileInput">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+<header id="topbar" role="banner">
+  <label class="file-label" for="fileInput" aria-label="Apri file EPUB">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
     Apri EPUB
   </label>
-  <input type="file" id="fileInput" accept=".epub">
+  <input type="file" id="fileInput" accept=".epub" aria-label="Seleziona file EPUB">
 
-  <button class="btn" onclick="toggleToc()">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+  <button class="btn" onclick="toggleToc()" aria-label="Mostra indice dei capitoli" aria-haspopup="dialog">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+      <line x1="8" y1="18" x2="21" y2="18"/>
+      <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/>
+      <line x1="3" y1="18" x2="3.01" y2="18"/>
+    </svg>
     Indice
   </button>
- <span id="topWordCount" style="
+
+  <div class="ctrl-group" role="group" aria-label="Controlli testo">
+    <button class="btn" onclick="changeFont(-1)" aria-label="Riduci dimensione font">A−</button>
+    <button class="btn" onclick="changeFont(1)"  aria-label="Aumenta dimensione font">A+</button>
+    <button class="btn" onclick="changeLine(-0.1)" aria-label="Riduci interlinea">↕−</button>
+    <button class="btn" onclick="changeLine(0.1)"  aria-label="Aumenta interlinea">↕+</button>
+  </div>
+
+  <button class="btn danger" onclick="resetBook()" aria-label="Cancella libro salvato" title="Cancella libro">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14H6L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/>
+      <path d="M9 6V4h6v2"/>
+    </svg>
+  </button>
+
+  <span id="bookTitle" aria-live="polite">Nessun libro caricato</span>
+
+  <span id="topWordCount" aria-live="polite" style="
     margin-left:auto;
     font-family:'JetBrains Mono',monospace;
     font-size:11px;
@@ -358,30 +512,20 @@ html {
     min-width: 130px;
     text-align:right;
   ">— parole rimaste</span>
-</div>
-  <div class="ctrl-group">
-    <button class="btn" onclick="changeFont(-1)" title="Riduci font">A−</button>
-    <button class="btn" onclick="changeFont(1)"  title="Aumenta font">A+</button>
-    <button class="btn" onclick="changeLine(-0.1)" title="Riduci interlinea">↕−</button>
-    <button class="btn" onclick="changeLine(0.1)"  title="Aumenta interlinea">↕+</button>
-  </div>
-
-  <button class="btn danger" onclick="resetBook()" title="Cancella libro">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-  </button>
-
-  <span id="bookTitle">Nessun libro caricato</span>
+</header>
 
 <!-- STATUS BAR -->
-<div id="statusBar">
+<div id="statusBar" role="status" aria-live="polite">
   <span id="statusMsg">Pronto</span>
   <span id="statsRight">—</span>
 </div>
-<div id="progressBar"><div id="progressFill"></div></div>
+<div id="progressBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progresso lettura">
+  <div id="progressFill"></div>
+</div>
 
 <!-- CONTROLS -->
 <div id="controls">
-  <div class="stat-label">
+  <div class="stat-label" aria-live="polite">
     <span>Cap. <span id="sChap">—</span></span>
     <span>Parole cap. <span id="sChapW">—</span></span>
     <span>Totale <span id="sTot">—</span></span>
@@ -389,93 +533,184 @@ html {
 </div>
 
 <!-- NAV TOP -->
-<div class="nav-bar">
-  <button class="nav-btn" id="btnPrevTop" onclick="prev()" disabled>← Precedente</button>
-  <span id="chapterLabel">—</span>
-  <button class="nav-btn" id="btnNextTop" onclick="next()" disabled>Successivo →</button>
-</div>
+<nav class="nav-bar" aria-label="Navigazione capitoli (in alto)">
+  <button class="nav-btn" id="btnPrevTop" onclick="prev()" disabled aria-label="Capitolo precedente">← Precedente</button>
+  <span id="chapterLabel" aria-live="polite">—</span>
+  <button class="nav-btn" id="btnNextTop" onclick="next()" disabled aria-label="Capitolo successivo">Successivo →</button>
+</nav>
 
 <!-- CONTENT -->
 <div id="contentWrap">
-  <article id="content" lang="it">
+  <main id="content" lang="it" role="main" tabindex="-1">
     <div id="emptyState">
-      <div class="big">📖</div>
+      <div class="big" aria-hidden="true">📖</div>
       <div>Apri un file EPUB per iniziare</div>
       <div style="color:var(--border);font-size:10px">Il libro viene salvato localmente — funziona offline</div>
+      <div style="color:var(--border);font-size:10px;margin-top:8px">← → per navigare tra capitoli</div>
     </div>
-  </article>
+  </main>
 </div>
 
 <!-- NAV BOTTOM -->
-<div class="nav-bar">
-  <button class="nav-btn" id="btnPrevBot" onclick="prev()" disabled>← Precedente</button>
+<nav class="nav-bar" aria-label="Navigazione capitoli (in basso)">
+  <button class="nav-btn" id="btnPrevBot" onclick="prev()" disabled aria-label="Capitolo precedente">← Precedente</button>
   <span></span>
-  <button class="nav-btn" id="btnNextBot" onclick="next()" disabled>Successivo →</button>
-</div>
+  <button class="nav-btn" id="btnNextBot" onclick="next()" disabled aria-label="Capitolo successivo">Successivo →</button>
+</nav>
+
+<!-- LOADING INDICATOR (angolo, non copre pulsanti) -->
+<div id="loadingOverlay" role="status" aria-live="assertive">⏳ Caricamento…</div>
 
 <!-- TOC DRAWER -->
-<div id="tocDrawer">
-  <div id="tocBackdrop" onclick="toggleToc()"></div>
+<div id="tocDrawer" role="dialog" aria-modal="true" aria-label="Indice dei capitoli">
+  <div id="tocBackdrop" onclick="toggleToc()" aria-hidden="true"></div>
   <div id="tocPanel">
     <div id="tocHeader">
       <span>INDICE DEI CAPITOLI</span>
-      <button class="btn" onclick="toggleToc()">✕</button>
+      <button class="btn" onclick="toggleToc()" aria-label="Chiudi indice">✕</button>
     </div>
-    <div id="tocList"></div>
+    <div id="tocList" role="list"></div>
   </div>
 </div>
 
 
 <script>
 /* =========================================================
-   STATE
+   STATO GLOBALE
    ========================================================= */
 let db;
-let chapters    = [];   // array di { title, html }
-let chapterWords = [];  // parole per capitolo
-let totalWords  = 0;
-let current     = 0;
-let bookLang    = "it";
+let chapters      = [];   // [{ title, html, href }]
+let chapterWords  = [];   // parole per capitolo
+let totalWords    = 0;
+let current       = 0;
+let bookLang      = "it";
+
+// Mappa filename → indice capitolo (per link interni EPUB)
+let fileToChapter = {};
 
 let fontSize   = parseInt(localStorage.getItem("fontSize"))    || 18;
 let lineHeight = parseFloat(localStorage.getItem("lineHeight")) || 1.8;
 
+// RAF handle per throttle dello scroll
+let scrollRaf = null;
+
+// Debug mode via ?debug=1
+const DEBUG = new URLSearchParams(location.search).has("debug");
+const log   = DEBUG ? (...a) => console.log("[EPUB]", ...a) : ()=>{};
+
 
 /* =========================================================
-   INDEXEDDB  (semplificata: un libro alla volta)
+   INDEXEDDB — un libro alla volta
+   Versione 3: aggiunto campo fileToChapter e bookTitle
    ========================================================= */
 function openDB(){
-  return new Promise(resolve=>{
-    const req = indexedDB.open("EPUB_DB", 2);
-    req.onupgradeneeded = e=>{
-      const db = e.target.result;
-      if(!db.objectStoreNames.contains("store"))
-        db.createObjectStore("store");
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("EPUB_DB", 3);
+
+    req.onupgradeneeded = e => {
+      const idb = e.target.result;
+      if (!idb.objectStoreNames.contains("store"))
+        idb.createObjectStore("store");
     };
-    req.onsuccess = e=>{ db = e.target.result; resolve(); };
+
+    req.onsuccess = e => {
+      db = e.target.result;
+
+      // Gestisce disconnessioni impreviste del DB
+      db.onversionchange = () => {
+        db.close();
+        setStatus("Database aggiornato — ricaricare la pagina");
+      };
+      resolve();
+    };
+
+    req.onerror = () => reject(new Error("Impossibile aprire IndexedDB: " + req.error));
+    req.onblocked = () => reject(new Error("IndexedDB bloccato — chiudi altre schede"));
   });
 }
-const dbSet  = (k,v)=>new Promise(r=>{ const tx=db.transaction("store","readwrite"); tx.objectStore("store").put(v,k); tx.oncomplete=r; });
-const dbGet  = (k)  =>new Promise(r=>{ const tx=db.transaction("store","readonly");  const req=tx.objectStore("store").get(k); req.onsuccess=()=>r(req.result); });
-const dbClear= ()   =>new Promise(r=>{ const tx=db.transaction("store","readwrite"); tx.objectStore("store").clear(); tx.oncomplete=r; });
+
+/** Salva un valore nel DB. Non lancia se il DB è chiuso. */
+function dbSet(k, v){
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction("store", "readwrite");
+      tx.objectStore("store").put(v, k);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    } catch(e) { reject(e); }
+  });
+}
+
+/** Legge un valore dal DB. Restituisce undefined se non esiste. */
+function dbGet(k){
+  return new Promise((resolve, reject) => {
+    try {
+      const tx  = db.transaction("store", "readonly");
+      const req = tx.objectStore("store").get(k);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror   = () => reject(req.error);
+    } catch(e) { reject(e); }
+  });
+}
+
+/** Svuota tutto il DB. */
+function dbClear(){
+  return new Promise((resolve, reject) => {
+    try {
+      const tx = db.transaction("store", "readwrite");
+      tx.objectStore("store").clear();
+      tx.oncomplete = resolve;
+      tx.onerror    = () => reject(tx.error);
+    } catch(e) { reject(e); }
+  });
+}
 
 
 /* =========================================================
-   INIT
+   INIT — carica dati salvati o mostra stato vuoto
    ========================================================= */
-(async()=>{
-  await openDB();
+(async () => {
+  try {
+    await openDB();
+  } catch(err) {
+    setStatus("DB non disponibile — dati non salvati: " + err.message);
+    console.error(err);
+  }
+
   applyStyle();
 
-  const saved = await dbGet("chapters");
-  if(saved && saved.length){
-    chapters     = saved;
-    chapterWords = await dbGet("chapterWords") || [];
-    totalWords   = await dbGet("totalWords")   || 0;
-    bookLang     = await dbGet("bookLang")     || "it";
-    const last   = await dbGet("last")         || 0;
-    renderToc();
-    show(last);
+  // Keyboard navigation ← →
+  document.addEventListener("keydown", e => {
+    // Non navigare se il focus è in un input/button
+    const tag = document.activeElement?.tagName;
+    if (tag === "INPUT" || tag === "BUTTON" || tag === "TEXTAREA") return;
+
+    if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); next(); }
+    if (e.key === "ArrowLeft"  || e.key === "PageUp")   { e.preventDefault(); prev(); }
+  });
+
+  // Carica libro salvato se presente
+  if (!db) return;
+  try {
+    const saved = await dbGet("chapters");
+    if (saved && saved.length) {
+      chapters      = saved;
+      chapterWords  = (await dbGet("chapterWords"))  || [];
+      totalWords    = (await dbGet("totalWords"))     || 0;
+      bookLang      = (await dbGet("bookLang"))       || "it";
+      fileToChapter = (await dbGet("fileToChapter"))  || {};
+
+      const savedTitle = await dbGet("bookTitle");
+      if (savedTitle) document.getElementById("bookTitle").textContent = savedTitle;
+
+      const last = (await dbGet("last")) || 0;
+      renderToc();
+      show(last);
+      log("Libro ripristinato da DB:", chapters.length, "capitoli");
+    }
+  } catch(err) {
+    setStatus("Errore ripristino dati: " + err.message);
+    console.error(err);
   }
 })();
 
@@ -483,339 +718,570 @@ const dbClear= ()   =>new Promise(r=>{ const tx=db.transaction("store","readwrit
 /* =========================================================
    FILE INPUT
    ========================================================= */
-document.getElementById("fileInput").addEventListener("change", async e=>{
+document.getElementById("fileInput").addEventListener("change", async e => {
   const file = e.target.files[0];
-  if(!file) return;
+  if (!file) return;
+
+  showLoading(true);
   setStatus("Caricamento…");
+
   try {
     const buf = await file.arrayBuffer();
     await processEpub(buf, file.name);
-  } catch(err){
+  } catch(err) {
     setStatus("Errore: " + err.message);
-    console.error(err);
+    console.error("[EPUB] processEpub:", err);
+  } finally {
+    showLoading(false);
+    // Reset input: permette di ricaricare lo stesso file
+    e.target.value = "";
   }
-  // reset input so same file can be reloaded
-  e.target.value = "";
 });
 
 
 /* =========================================================
-   IMAGE FIX  (gestisce path relativi, ../ e assoluti)
+   LOADING INDICATOR
    ========================================================= */
-async function fixImages(doc, zip, base){
-  for(const img of doc.querySelectorAll("img, image")){
-    const attr = img.tagName === "image" ? "href" : "src";
-    let src = img.getAttribute(attr) || img.getAttribute("xlink:href") || "";
-    if(!src || src.startsWith("data:") || src.startsWith("http")) continue;
-
-    // risolvi path relativo rispetto alla base
-    let path = resolvePath(base, src);
-    const file = zip.file(path)
-               || zip.file(path.replace(/^\//, ""))
-               || findInsensitive(zip, path);
-    if(!file) continue;
-
-    try {
-      const blob    = await file.async("blob");
-      const dataUrl = await blobToDataUrl(blob);
-      img.setAttribute(attr, dataUrl);
-      if(img.getAttribute("xlink:href")) img.setAttribute("xlink:href", dataUrl);
-    } catch(_){}
-  }
+function showLoading(visible){
+  document.getElementById("loadingOverlay").style.display = visible ? "block" : "none";
 }
 
+
+/* =========================================================
+   UTILITÀ PATH
+   ========================================================= */
+
+/**
+ * Risolve un path relativo `href` rispetto a una directory base.
+ * Gestisce: percorsi con ../, ./, assoluti, e senza slash iniziale.
+ *
+ * @param {string} base  - directory base (es. "OEBPS/Text/")
+ * @param {string} href  - path relativo (es. "../images/cover.jpg")
+ * @returns {string}
+ */
 function resolvePath(base, href){
-  if(href.startsWith("/")) return href.slice(1);
-  let parts = (base + href).split("/");
-  const out = [];
-  for(const p of parts){
-    if(p === "..") out.pop();
-    else if(p !== ".") out.push(p);
+  if (!href) return "";
+  if (href.startsWith("data:")) return href;
+  if (href.startsWith("http://") || href.startsWith("https://")) return href;
+  if (href.startsWith("/")) return href.slice(1); // assoluto → rimuove slash
+
+  const parts = (base + href).split("/");
+  const out   = [];
+  for (const p of parts){
+    if (p === "..") out.pop();
+    else if (p !== ".") out.push(p);
   }
   return out.join("/");
 }
 
+/** Cerca un file in ZIP in modo case-insensitive. */
 function findInsensitive(zip, path){
   const low = path.toLowerCase();
-  const key = Object.keys(zip.files).find(k=>k.toLowerCase()===low);
+  const key = Object.keys(zip.files).find(k => k.toLowerCase() === low);
   return key ? zip.file(key) : null;
 }
 
-const blobToDataUrl = blob=>new Promise((res,rej)=>{
-  const r=new FileReader();
-  r.onload=()=>res(r.result);
-  r.onerror=()=>rej(new Error("FileReader failed"));
-  r.readAsDataURL(blob);
-});
+/** Mime type da estensione file. */
+function getMimeType(path){
+  const ext = (path.split(".").pop() || "").toLowerCase();
+  const map  = {
+    jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+    gif: "image/gif",  svg: "image/svg+xml", webp: "image/webp",
+    bmp: "image/bmp",  avif: "image/avif"
+  };
+  return map[ext] || "image/jpeg";
+}
 
 
 /* =========================================================
-   TOC PARSING  (nav.xhtml > toc.ncx > fallback spine numerico)
+   SANITIZZAZIONE HTML EPUB
+   Rimuove script, stili inline critici, event handlers,
+   preservando grassetto, italico, titoli, paragrafi, tabelle.
    ========================================================= */
-function parseToc(opf, zip, base){
-  const parser = new DOMParser();
+function sanitizeDoc(doc){
+  // Tag da rimuovere completamente
+  const danger = ["script", "style", "meta", "link",
+                  "iframe", "object", "embed", "form", "input"];
+  danger.forEach(tag =>
+    doc.querySelectorAll(tag).forEach(el => el.remove())
+  );
 
-  // 1. Cerca nav.xhtml (EPUB3)
-  const navItem = [...opf.querySelectorAll("manifest item")]
-    .find(i=> i.getAttribute("properties")?.includes("nav")
-            || (i.getAttribute("media-type")||"").includes("xhtml")
-               && (i.getAttribute("href")||"").toLowerCase().includes("nav"));
+  // Rimuovi event handlers inline (onclick, onload, ecc.)
+  doc.querySelectorAll("*").forEach(el => {
+    [...el.attributes]
+      .filter(a => a.name.startsWith("on"))
+      .forEach(a => el.removeAttribute(a.name));
 
-  if(navItem){
-    const navPath = base + navItem.getAttribute("href");
+    // Rimuovi solo le proprietà CSS che impongono colori/sfondi
+    // (altrimenti i colori del libro tema chiaro sovrascriverebbero il dark mode).
+    // NON usiamo !important perché Edge Read Aloud inietta span con stili inline
+    // e !important li renderebbe invisibili.
+    if (el.style && el.style.length > 0) {
+      el.style.removeProperty("color");
+      el.style.removeProperty("background");
+      el.style.removeProperty("background-color");
+      el.style.removeProperty("font-family");
+    }
+  });
+}
+
+
+/* =========================================================
+   FIX IMMAGINI
+   Converte immagini interne EPUB in data URL base64.
+   Gestisce: jpg, png, gif, svg, webp, avif.
+   Supporta path relativi complessi (../../), assoluti, xlink:href.
+   ========================================================= */
+async function fixImages(doc, zip, baseDir){
+  const imgEls = [...doc.querySelectorAll("img, image")];
+
+  for (const img of imgEls){
+    const isImage = img.tagName.toLowerCase() === "image";
+    // Supporto sia href (EPUB3) che xlink:href (SVG/EPUB2)
+    const attr = isImage ? "href" : "src";
+    let src = img.getAttribute(attr) || img.getAttribute("xlink:href") || "";
+
+    if (!src || src.startsWith("data:") ||
+        src.startsWith("http://") || src.startsWith("https://")) continue;
+
+    const resolved = resolvePath(baseDir, src);
+    const zipFile  = zip.file(resolved)
+                   || zip.file(resolved.replace(/^\//, ""))
+                   || findInsensitive(zip, resolved);
+
+    if (!zipFile){
+      log("Immagine non trovata:", src, "→", resolved);
+      continue;
+    }
+
+    try {
+      // base64 è più veloce di Blob+FileReader e non richiede URL.createObjectURL
+      const b64      = await zipFile.async("base64");
+      const mime     = getMimeType(zipFile.name);
+      const dataUrl  = `data:${mime};base64,${b64}`;
+
+      img.setAttribute(attr, dataUrl);
+      // Aggiorna anche xlink:href se presente (SVG <image>)
+      if (img.hasAttribute("xlink:href"))
+        img.setAttribute("xlink:href", dataUrl);
+
+      log("Immagine convertita:", resolved);
+    } catch(e){
+      log("Errore immagine:", resolved, e);
+    }
+  }
+}
+
+
+/* =========================================================
+   FIX LINK INTERNI EPUB
+   Trasforma href relativi in navigazione interna all'app.
+   Viene chiamato una volta al caricamento — usa event delegation.
+   ========================================================= */
+function setupLinkInterception(){
+  document.getElementById("content").addEventListener("click", e => {
+    const a = e.target.closest("a[href]");
+    if (!a) return;
+
+    const href = a.getAttribute("href") || "";
+
+    // Link esterni → comportamento normale
+    if (href.startsWith("http://") || href.startsWith("https://")
+        || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+
+    e.preventDefault();
+
+    const [filePart, anchor] = href.split("#");
+
+    if (filePart) {
+      // Cerca capitolo corrispondente nella mappa filename→indice
+      const basename = filePart.split("/").pop(); // solo il nome file
+      const idx = fileToChapter[filePart]
+               ?? fileToChapter[basename]
+               ?? -1;
+
+      if (idx >= 0){
+        show(idx, anchor || null);
+        log("Link interno → capitolo", idx, anchor ? "#" + anchor : "");
+      } else {
+        log("Link interno non risolto:", filePart);
+      }
+    } else if (anchor){
+      // Ancora nella stessa pagina
+      scrollToAnchor(anchor);
+    }
+  });
+}
+
+/** Scrolla a un elemento per id o name. */
+function scrollToAnchor(anchor){
+  if (!anchor) return;
+  setTimeout(() => {
+    const el = document.getElementById(anchor)
+            || document.querySelector(`[name="${anchor}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    else log("Ancora non trovata:", anchor);
+  }, 80);
+}
+
+
+/* =========================================================
+   TOC PARSING UNIFICATO  (EPUB3 nav.xhtml + EPUB2 toc.ncx)
+   Restituisce una mappa  idref → titolo.
+   ========================================================= */
+async function parseTocTitles(opf, zip, base, manifest){
+  const parser   = new DOMParser();
+  const titleMap = {};
+
+  /* ── EPUB3: nav.xhtml ── */
+  const navEl = [...opf.getElementsByTagName("item")]
+    .find(i => (i.getAttribute("properties") || "").includes("nav")
+            || (i.getAttribute("href") || "").toLowerCase().includes("nav")
+               && (i.getAttribute("media-type") || "").includes("html"));
+
+  if (navEl){
+    const navHref = navEl.getAttribute("href");
+    const navPath = resolvePath(base, navHref);
     const navFile = zip.file(navPath) || findInsensitive(zip, navPath);
-    if(navFile){
+
+    if (navFile){
       try {
-        const navDoc = parser.parseFromString(
-          zip.files[navFile.name]?._data || "", "text/html");
-        // non usiamo async qui — restituiamo i titoli dai toc item
-        // (viene chiamato in modo sincrono dall'ePub già in RAM)
-        const navText = navFile.name; // segnaposto; vedi sotto
-      } catch(_){}
+        const navText = await navFile.async("text");
+        const navDoc  = parser.parseFromString(navText, "text/html");
+
+        // Cerca <nav epub:type="toc"> o qualsiasi <nav>
+        const navElem = navDoc.querySelector("nav[epub\\:type='toc']")
+                     || navDoc.querySelector("nav");
+
+        if (navElem){
+          navElem.querySelectorAll("a").forEach(a => {
+            const label = a.textContent.trim();
+            const href  = (a.getAttribute("href") || "").split("#")[0];
+            if (!label || !href) return;
+            const plain = href.split("/").pop();
+            for (const [id, info] of Object.entries(manifest)){
+              const mHref = info.href || "";
+              if (mHref === href || mHref.split("/").pop() === plain){
+                titleMap[id] = label;
+                break;
+              }
+            }
+          });
+        }
+
+        if (Object.keys(titleMap).length > 0){
+          log("TOC da nav.xhtml:", Object.keys(titleMap).length, "voci");
+          return titleMap;
+        }
+      } catch(e){
+        log("nav.xhtml parse error:", e);
+      }
     }
   }
 
-  // 2. Cerca toc.ncx (EPUB2)
-  const ncxItem = [...opf.querySelectorAll("manifest item")]
-    .find(i=>(i.getAttribute("media-type")||"").includes("ncx")
-           || (i.getAttribute("href")||"").toLowerCase().endsWith(".ncx"));
+  /* ── EPUB2: toc.ncx ── */
+  const ncxEl = [...opf.getElementsByTagName("item")]
+    .find(i => (i.getAttribute("media-type") || "").includes("ncx")
+            || (i.getAttribute("href") || "").toLowerCase().endsWith(".ncx"));
 
-  if(ncxItem){
-    const ncxPath = base + ncxItem.getAttribute("href");
+  if (ncxEl){
+    const ncxHref = ncxEl.getAttribute("href");
+    const ncxPath = resolvePath(base, ncxHref);
     const ncxFile = zip.file(ncxPath) || findInsensitive(zip, ncxPath);
-    if(ncxFile) return { type:"ncx", file: ncxFile };
-  }
 
-  return null;
-}
+    if (ncxFile){
+      try {
+        const ncxText = await ncxFile.async("text");
+        const ncx     = parser.parseFromString(ncxText, "application/xml");
 
-async function buildTitleMap(tocInfo, zip, spineIds, manifest, base){
-  // Mappa idref → titolo
-  const map = {};
-  if(!tocInfo) return map;
-  const parser = new DOMParser();
+        ncx.querySelectorAll("navPoint").forEach(np => {
+          const label = np.querySelector("navLabel text")?.textContent?.trim();
+          const src   = np.querySelector("content")?.getAttribute("src")?.split("#")[0];
+          if (!label || !src) return;
+          const plain = src.split("/").pop();
+          for (const [id, info] of Object.entries(manifest)){
+            const mHref = info.href || "";
+            if (mHref === src || mHref.split("/").pop() === plain){
+              titleMap[id] = label;
+              break;
+            }
+          }
+        });
 
-  if(tocInfo.type === "ncx"){
-    const text = await tocInfo.file.async("text");
-    const ncx  = parser.parseFromString(text, "application/xml");
-    ncx.querySelectorAll("navPoint").forEach(np=>{
-      const label = np.querySelector("navLabel text")?.textContent?.trim();
-      const src   = np.querySelector("content")?.getAttribute("src")?.split("#")[0];
-      if(label && src){
-        // associa il src al corrispondente idref nello spine
-        const href = src.split("/").pop();
-        const id   = Object.entries(manifest).find(([,v])=>v.split("/").pop()===href)?.[0];
-        if(id) map[id] = label;
+        log("TOC da toc.ncx:", Object.keys(titleMap).length, "voci");
+      } catch(e){
+        log("NCX parse error:", e);
       }
-    });
+    }
   }
 
-  // nav.xhtml
-  if(tocInfo.type === "nav"){
-    const text  = await tocInfo.file.async("text");
-    const navDoc = parser.parseFromString(text, "text/html");
-    navDoc.querySelectorAll("nav[epub\\:type='toc'] a, nav a").forEach(a=>{
-      const label = a.textContent.trim();
-      const href  = a.getAttribute("href")?.split("#")[0];
-      if(label && href){
-        const plain = href.split("/").pop();
-        const id = Object.entries(manifest).find(([,v])=>v.split("/").pop()===plain)?.[0];
-        if(id) map[id] = label;
-      }
-    });
-  }
-
-  return map;
+  return titleMap;
 }
 
 
 /* =========================================================
-   EPUB PARSER
+   EPUB PARSER PRINCIPALE
    ========================================================= */
 async function processEpub(buffer, filename){
   const zip    = await JSZip.loadAsync(buffer);
   const parser = new DOMParser();
 
-  // container.xml → OPF path
+  /* ── container.xml → percorso OPF ── */
   const containerFile = zip.file("META-INF/container.xml")
     || findInsensitive(zip, "META-INF/container.xml");
-  if(!containerFile) throw new Error("container.xml non trovato");
+  if (!containerFile) throw new Error("container.xml non trovato — file EPUB non valido");
 
   const containerXml = parser.parseFromString(
-    await containerFile.async("text"), "application/xml");
+    await containerFile.async("text"), "application/xml"
+  );
   const rootPath = containerXml.querySelector("rootfile")?.getAttribute("full-path");
-  if(!rootPath) throw new Error("OPF path non trovato");
+  if (!rootPath) throw new Error("OPF path non trovato in container.xml");
 
   const opfFile = zip.file(rootPath) || findInsensitive(zip, rootPath);
-  if(!opfFile) throw new Error("OPF non trovato: " + rootPath);
+  if (!opfFile) throw new Error("File OPF non trovato: " + rootPath);
 
   const opf  = parser.parseFromString(await opfFile.async("text"), "application/xml");
-  const base = rootPath.substring(0, rootPath.lastIndexOf("/") + 1);
+  const base = rootPath.substring(0, rootPath.lastIndexOf("/") + 1); // es. "OEBPS/"
+  log("OPF base dir:", base);
 
-  // lingua del libro
-  bookLang = opf.querySelector("language")?.textContent?.trim() || "it";
+  /* ── Lingua del libro ── */
+  bookLang = opf.querySelector("language")?.textContent?.trim()
+          || opf.getElementsByTagName("dc:language")[0]?.textContent?.trim()
+          || "it";
 
-  // manifest
+  /* ── Manifest: id → { href, mediaType } ── */
+  // Usiamo getElementsByTagName per ignorare namespace (robusto per XML non standard)
   const manifest = {};
-  opf.querySelectorAll("manifest item").forEach(i=>{
-    manifest[i.getAttribute("id")] = i.getAttribute("href");
+  [...opf.getElementsByTagName("item")].forEach(i => {
+    const id   = i.getAttribute("id");
+    const href = i.getAttribute("href");
+    if (id && href){
+      manifest[id] = {
+        href,
+        mediaType: i.getAttribute("media-type") || ""
+      };
+    }
   });
+  log("Manifest:", Object.keys(manifest).length, "item");
 
-  // spine
-  const spineIds = [];
-  opf.querySelectorAll("spine itemref").forEach(i=>{
-    spineIds.push(i.getAttribute("idref"));
-  });
+  /* ── Spine: ordine di lettura ── */
+  const spineRefs = [...opf.getElementsByTagName("itemref")];
+  const spineIds  = spineRefs
+    .map(i => i.getAttribute("idref"))
+    .filter(Boolean);
+  log("Spine:", spineIds.length, "item");
 
-  // TOC
-  const tocInfo  = parseToc(opf, zip, base);
+  /* ── TOC ── */
+  const titleMap = await parseTocTitles(opf, zip, base, manifest);
 
-  // correggi parseToc per nav
-  const navItem2 = [...opf.querySelectorAll("manifest item")]
-    .find(i=> i.getAttribute("properties")?.includes("nav"));
-  let tocInfoFinal = tocInfo;
-  if(!tocInfoFinal && navItem2){
-    const navPath = base + navItem2.getAttribute("href");
-    const nf = zip.file(navPath) || findInsensitive(zip, navPath);
-    if(nf) tocInfoFinal = { type:"nav", file: nf };
-  }
+  /* ── Carica capitoli ── */
+  chapters      = [];
+  chapterWords  = [];
+  fileToChapter = {};
 
-  const titleMap = await buildTitleMap(tocInfoFinal, zip, spineIds, manifest, base);
-
-  // carica capitoli
-  chapters     = [];
-  chapterWords = [];
-
-  for(let idx=0; idx<spineIds.length; idx++){
+  for (let idx = 0; idx < spineIds.length; idx++){
     const id   = spineIds[idx];
-    const href = manifest[id];
-    if(!href) continue;
+    const info = manifest[id];
+    if (!info) { log("ID non in manifest:", id); continue; }
 
-    const chFile = zip.file(base + href) || findInsensitive(zip, base + href);
-    if(!chFile) continue;
+    const { href, mediaType } = info;
 
-    const html  = await chFile.async("text");
-    const doc   = parser.parseFromString(html, "text/html");
+    // Salta item non HTML (CSS, immagini di copertina, ecc.)
+    if (mediaType && !mediaType.includes("html") && !mediaType.includes("xml")){
+      log("Skip non-html:", href, mediaType);
+      continue;
+    }
 
-    await fixImages(doc, zip, base + href.substring(0, href.lastIndexOf("/")+1));
+    const fullPath = resolvePath(base, href);
+    const chFile   = zip.file(fullPath) || findInsensitive(zip, fullPath);
+    if (!chFile){ log("File capitolo non trovato:", fullPath); continue; }
+
+    const rawHtml = await chFile.async("text");
+    const doc     = parser.parseFromString(rawHtml, "text/html");
+
+    // Sanitizza prima di manipolare il DOM
+    sanitizeDoc(doc);
+
+    // Fix immagini: il base del capitolo è la sua directory
+    const chapterDir = base + href.substring(0, href.lastIndexOf("/") + 1)
+                           .replace(base, "");
+    // Ricalcola la dir corretta come percorso assoluto nel ZIP
+    const chapterDirFull = fullPath.substring(0, fullPath.lastIndexOf("/") + 1);
+    await fixImages(doc, zip, chapterDirFull);
 
     const bodyHtml = doc.body?.innerHTML || "";
-    if(!bodyHtml.trim()) continue;
+    if (!bodyHtml.trim()){ log("Capitolo vuoto:", href); continue; }
 
-    const words = (doc.body?.textContent || "").split(/\s+/).filter(Boolean).length;
+    // Conta parole nel testo (esclude markup)
+    const words = countWords(doc.body?.textContent || "");
 
-    // titolo: da TOC map, oppure primo h1/h2/h3, oppure "Capitolo N"
+    // Titolo: TOC map > primo heading > nome file
     const titleFromDoc = doc.querySelector("h1,h2,h3")?.textContent?.trim();
     const title = titleMap[id]
                || titleFromDoc
                || ("Capitolo " + (chapters.length + 1));
 
-    chapters.push({ title, html: bodyHtml });
+    // Registra mapping filename → indice per link interni
+    const chapterIndex = chapters.length;
+    fileToChapter[href]                     = chapterIndex;
+    fileToChapter[href.split("/").pop()]    = chapterIndex;
+    fileToChapter[fullPath]                 = chapterIndex;
+    fileToChapter[fullPath.split("/").pop()] = chapterIndex;
+
+    chapters.push({ title, html: bodyHtml, href });
     chapterWords.push(words);
 
     setStatus(`Caricamento… ${chapters.length} capitoli`);
+    log(`Capitolo ${chapterIndex}: "${title}" (${words} parole)`);
   }
 
-  if(!chapters.length) throw new Error("Nessun contenuto trovato nell'EPUB");
+  if (!chapters.length) throw new Error(
+    "Nessun contenuto HTML trovato nell'EPUB. Il file potrebbe essere protetto o non standard."
+  );
 
-  totalWords = chapterWords.reduce((a,b)=>a+b,0);
+  totalWords = chapterWords.reduce((a, b) => a + b, 0);
 
-  // salva (sovrascrive sempre)
-  await dbClear();
-  await dbSet("chapters",     chapters);
-  await dbSet("chapterWords", chapterWords);
-  await dbSet("totalWords",   totalWords);
-  await dbSet("bookLang",     bookLang);
-  await dbSet("last",         0);
+  /* ── Salvataggio DB ── */
+  try {
+    await dbClear();
+    await dbSet("chapters",      chapters);
+    await dbSet("chapterWords",  chapterWords);
+    await dbSet("totalWords",    totalWords);
+    await dbSet("bookLang",      bookLang);
+    await dbSet("fileToChapter", fileToChapter);
+    await dbSet("last",          0);
 
-  // titolo libro
-  const opfTitle = opf.querySelector("title")?.textContent?.trim();
-  document.getElementById("bookTitle").textContent =
-    opfTitle || filename.replace(".epub","");
+    const opfTitle = opf.querySelector("title")?.textContent?.trim()
+                  || opf.getElementsByTagName("dc:title")[0]?.textContent?.trim()
+                  || filename.replace(/\.epub$/i, "");
+    await dbSet("bookTitle", opfTitle);
+
+    document.getElementById("bookTitle").textContent = opfTitle;
+  } catch(err){
+    // Salvataggio fallito (es. quota) — funziona comunque in sessione
+    setStatus("Avviso: impossibile salvare in DB — " + err.message);
+    console.warn("[EPUB] dbSet error:", err);
+  }
 
   renderToc();
   show(0);
-  setStatus("Libro caricato — " + chapters.length + " capitoli");
+  setStatus(`Libro caricato — ${chapters.length} capitoli, ${totalWords.toLocaleString()} parole`);
 }
 
 
 /* =========================================================
-   NAVIGATION
+   CONTEGGIO PAROLE (più preciso — esclude markup e whitespace multiplo)
    ========================================================= */
-function show(i){
-  if(i < 0 || i >= chapters.length) return;
+function countWords(text){
+  return (text || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(w => w.length > 0).length;
+}
+
+
+/* =========================================================
+   NAVIGAZIONE
+   ========================================================= */
+function show(i, anchor){
+  if (i < 0 || i >= chapters.length) return;
   current = i;
 
   const content = document.getElementById("content");
   content.innerHTML = chapters[i].html;
   content.lang      = bookLang;
 
-  dbSet("last", i);
+  // Salva posizione
+  if (db) dbSet("last", i).catch(console.warn);
 
-  // nav buttons
+  // Pulsanti navigazione
   document.getElementById("btnPrevTop").disabled = (i === 0);
   document.getElementById("btnPrevBot").disabled = (i === 0);
-  document.getElementById("btnNextTop").disabled = (i === chapters.length-1);
-  document.getElementById("btnNextBot").disabled = (i === chapters.length-1);
+  document.getElementById("btnNextTop").disabled = (i === chapters.length - 1);
+  document.getElementById("btnNextBot").disabled = (i === chapters.length - 1);
 
+  // Etichetta capitolo
   document.getElementById("chapterLabel").textContent =
-    (i+1) + " / " + chapters.length + "  —  " + chapters[i].title;
+    `${i + 1} / ${chapters.length}  —  ${chapters[i].title}`;
 
-  // active toc item
-  document.querySelectorAll(".toc-item").forEach((el,j)=>{
-    el.classList.toggle("active", j===i);
+  // Active in TOC
+  document.querySelectorAll(".toc-item").forEach((el, j) => {
+    el.classList.toggle("active", j === i);
   });
 
   applyStyle();
   updateStats();
-  updateWordCount();
-  window.scrollTo({top:0});
+
+  if (anchor){
+    // Scroll all'ancora dopo che il DOM è stato aggiornato
+    scrollToAnchor(anchor);
+  } else {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    // Aggiorna word count una volta che lo scroll è a 0
+    requestAnimationFrame(updateWordCount);
+  }
 }
 
-function prev(){ show(current - 1); }
-function next(){ show(current + 1); }
+function prev(){ if (current > 0) show(current - 1); }
+function next(){ if (current < chapters.length - 1) show(current + 1); }
 
 
 /* =========================================================
-   STATS
+   STATISTICHE
    ========================================================= */
 function updateStats(){
-  if(!chapters.length) return;
+  if (!chapters.length) return;
 
+  // Parole lette = tutti i capitoli fino al corrente incluso
   let read = 0;
-  for(let i=0;i<=current;i++) read += chapterWords[i]||0;
-  const pct = totalWords ? ((read/totalWords)*100).toFixed(1) : 0;
+  for (let i = 0; i <= current; i++) read += chapterWords[i] || 0;
 
-  document.getElementById("sChap").textContent   = (current+1) + " / " + chapters.length;
-  document.getElementById("sChapW").textContent  = (chapterWords[current]||0).toLocaleString();
-  document.getElementById("sTot").textContent    = read.toLocaleString() + " / " + totalWords.toLocaleString() + " (" + pct + "%)";
+  const pct = totalWords ? ((read / totalWords) * 100).toFixed(1) : 0;
 
+  document.getElementById("sChap").textContent  = `${current + 1} / ${chapters.length}`;
+  document.getElementById("sChapW").textContent = (chapterWords[current] || 0).toLocaleString();
+  document.getElementById("sTot").textContent   =
+    `${read.toLocaleString()} / ${totalWords.toLocaleString()} (${pct}%)`;
   document.getElementById("statsRight").textContent =
-    read.toLocaleString() + " / " + totalWords.toLocaleString() + " parole lette";
+    `${read.toLocaleString()} / ${totalWords.toLocaleString()} parole lette`;
 
-  document.getElementById("progressFill").style.width = pct + "%";
+  const fill = document.getElementById("progressFill");
+  fill.style.width = pct + "%";
+  document.getElementById("progressBar").setAttribute("aria-valuenow", pct);
 }
 
 
 /* =========================================================
-   WORD COUNTER IN TOPBAR (aggiornato sullo scroll)
+   CONTATORE PAROLE RIMANENTI (throttled con RAF)
+   Migliorato: usa window.scrollY + scrollHeight − innerHeight
+   e tiene conto che capitoli corti non scorrono.
    ========================================================= */
-window.addEventListener("scroll", updateWordCount);
+window.addEventListener("scroll", () => {
+  if (scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    updateWordCount();
+    scrollRaf = null;
+  });
+}, { passive: true });
 
 function updateWordCount(){
-  const el  = document.getElementById("topWordCount");
-  const doc = document.documentElement;
-  const st  = doc.scrollTop || document.body.scrollTop;
-  const sh  = doc.scrollHeight - doc.clientHeight;
-  const prog = sh > 0 ? st / sh : 0;
+  const el    = document.getElementById("topWordCount");
+  if (!chapters.length){
+    el.textContent = "— parole rimaste";
+    return;
+  }
+
+  const scrollTop    = window.scrollY;
+  const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+
+  // Se il capitolo è più corto della viewport (scrollHeight ≤ 0),
+  // assumiamo che sia completamente visibile (0 rimanenti).
+  const prog = scrollHeight > 10 ? Math.min(scrollTop / scrollHeight, 1) : 1;
 
   const total     = chapterWords[current] || 0;
   const remaining = Math.max(Math.floor(total * (1 - prog)), 0);
 
-  if(!chapters.length){
-    el.textContent = "— parole rimaste";
-    return;
-  }
   el.textContent = remaining.toLocaleString() + " parole rimaste";
 }
 
@@ -826,61 +1292,108 @@ function updateWordCount(){
 function renderToc(){
   const list = document.getElementById("tocList");
   list.innerHTML = "";
-  chapters.forEach((ch,i)=>{
-    const btn = document.createElement("button");
-    btn.className = "toc-item" + (i===current?" active":"");
-    btn.innerHTML = `${ch.title}<span class="toc-words">${(chapterWords[i]||0).toLocaleString()} p.</span>`;
-    btn.onclick = ()=>{ show(i); toggleToc(); };
+  chapters.forEach((ch, i) => {
+    const btn        = document.createElement("button");
+    btn.className    = "toc-item" + (i === current ? " active" : "");
+    btn.role         = "listitem";
+    btn.setAttribute("aria-current", i === current ? "true" : "false");
+    btn.innerHTML    =
+      `${ch.title}<span class="toc-words" aria-hidden="true">${(chapterWords[i] || 0).toLocaleString()} p.</span>`;
+    btn.onclick      = () => { show(i); toggleToc(); };
     list.appendChild(btn);
   });
 }
 
 function toggleToc(){
-  const d = document.getElementById("tocDrawer");
-  d.classList.toggle("open");
+  const d    = document.getElementById("tocDrawer");
+  const open = d.classList.toggle("open");
+  d.setAttribute("aria-hidden", open ? "false" : "true");
+
+  // Focus trap semplice: porta il focus sul pannello quando aperto
+  if (open){
+    const closeBtn = d.querySelector(".btn");
+    if (closeBtn) setTimeout(() => closeBtn.focus(), 50);
+  }
 }
+
+// Chiudi TOC con Escape
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.getElementById("tocDrawer").classList.contains("open")){
+    toggleToc();
+  }
+});
 
 
 /* =========================================================
-   STYLE
+   STILE (font size, interlinea)
    ========================================================= */
 function applyStyle(){
   const c = document.getElementById("content");
   c.style.fontSize   = fontSize + "px";
   c.style.lineHeight = lineHeight;
 }
-function changeFont(v){ fontSize = Math.max(12, Math.min(32, fontSize+v)); localStorage.setItem("fontSize",fontSize); applyStyle(); }
-function changeLine(v){ lineHeight = Math.max(1.2, Math.min(2.8, +(lineHeight+v).toFixed(1))); localStorage.setItem("lineHeight",lineHeight); applyStyle(); }
+
+function changeFont(v){
+  fontSize = Math.max(12, Math.min(36, fontSize + v));
+  localStorage.setItem("fontSize", fontSize);
+  applyStyle();
+}
+
+function changeLine(v){
+  lineHeight = Math.max(1.2, Math.min(2.8, +(lineHeight + v).toFixed(1)));
+  localStorage.setItem("lineHeight", lineHeight);
+  applyStyle();
+}
 
 
 /* =========================================================
    STATUS
    ========================================================= */
-function setStatus(msg){ document.getElementById("statusMsg").textContent = msg; }
+function setStatus(msg){
+  document.getElementById("statusMsg").textContent = msg;
+}
 
 
 /* =========================================================
    RESET
    ========================================================= */
 async function resetBook(){
-  if(!confirm("Cancellare il libro salvato?")) return;
-  await dbClear();
-  chapters = []; chapterWords = []; totalWords = 0; current = 0;
+  if (!confirm("Cancellare il libro salvato e tutti i dati?")) return;
+
+  try { await dbClear(); } catch(e){ console.warn(e); }
+
+  chapters = []; chapterWords = []; totalWords = 0;
+  current  = 0;  fileToChapter = {};
+
   document.getElementById("content").innerHTML = `
     <div id="emptyState">
-      <div class="big">📖</div>
+      <div class="big" aria-hidden="true">📖</div>
       <div>Apri un file EPUB per iniziare</div>
+      <div style="color:var(--border);font-size:10px">Il libro viene salvato localmente — funziona offline</div>
     </div>`;
-  document.getElementById("bookTitle").textContent = "Nessun libro caricato";
-  document.getElementById("tocList").innerHTML = "";
-  document.getElementById("chapterLabel").textContent = "—";
-  document.getElementById("progressFill").style.width = "0%";
-  document.getElementById("statsRight").textContent = "—";
-  ["sChap","sChapW","sTot"].forEach(id=>document.getElementById(id).textContent="—");
-  ["btnPrevTop","btnPrevBot","btnNextTop","btnNextBot"]
-    .forEach(id=>document.getElementById(id).disabled=true);
+  document.getElementById("bookTitle").textContent     = "Nessun libro caricato";
+  document.getElementById("tocList").innerHTML         = "";
+  document.getElementById("chapterLabel").textContent  = "—";
+  document.getElementById("progressFill").style.width  = "0%";
+  document.getElementById("progressBar").setAttribute("aria-valuenow", "0");
+  document.getElementById("statsRight").textContent    = "—";
+  document.getElementById("topWordCount").textContent  = "— parole rimaste";
+  ["sChap", "sChapW", "sTot"].forEach(id => {
+    document.getElementById(id).textContent = "—";
+  });
+  ["btnPrevTop", "btnPrevBot", "btnNextTop", "btnNextBot"].forEach(id => {
+    document.getElementById(id).disabled = true;
+  });
+
   setStatus("Pronto");
 }
+
+
+/* =========================================================
+   SETUP LINK INTERCEPTION — una sola volta al caricamento
+   ========================================================= */
+setupLinkInterception();
+
 </script>
 </body>
 </html>
