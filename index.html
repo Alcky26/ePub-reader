@@ -196,12 +196,19 @@ input[type="file"] { display: none; }
   color: var(--text);
 }
 
-/* Sanitize book styles */
+/* Sanitize book styles — NO !important su color/background:
+   Edge Read Aloud inietta span con stili inline per l'evidenziazione;
+   qualsiasi !important su color o background li renderebbe invisibili. */
 #content * {
   max-width: 100%;
-  font-family: 'Lora', Georgia, serif !important;
-  color: var(--text) !important;
-  background: transparent !important;
+}
+
+#content p, #content div, #content span,
+#content li, #content td, #content th,
+#content blockquote, #content cite {
+  font-family: 'Lora', Georgia, serif;
+  color: var(--text);
+  background: transparent;
 }
 
 #content img {
@@ -213,13 +220,23 @@ input[type="file"] { display: none; }
 
 #content h1, #content h2, #content h3,
 #content h4, #content h5, #content h6 {
-  color: var(--accent) !important;
+  font-family: 'Lora', Georgia, serif;
+  color: var(--accent);
+  background: transparent;
   margin: 2em 0 .6em;
   line-height: 1.3;
 }
 
 #content p { margin-bottom: 1.1em; }
-#content a { color: var(--accent2) !important; }
+#content a { color: var(--accent2); }
+
+/* Compensa l'header sticky quando Edge fa scroll alla parola corrente */
+html {
+  scroll-padding-top: 120px;
+}
+#content p, #content span, #content div {
+  scroll-margin-top: 120px;
+}
 
 /* ── TOC DRAWER ── */
 #tocDrawer {
@@ -292,26 +309,6 @@ input[type="file"] { display: none; }
   margin-top: 2px;
 }
 
-/* ── FLOAT PILL ── */
-#floatPill {
-  position: fixed;
-  bottom: 20px;
-  right: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  z-index: 150;
-  backdrop-filter: blur(8px);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity .3s;
-}
-#floatPill.visible { opacity: 1; }
-
 /* ── EMPTY STATE ── */
 #emptyState {
   display: flex;
@@ -361,6 +358,20 @@ input[type="file"] { display: none; }
   </button>
 
   <span id="bookTitle">Nessun libro caricato</span>
+
+  <span id="topWordCount" style="
+    margin-left:auto;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    white-space:nowrap;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface2);
+    min-width: 130px;
+    text-align:right;
+  ">— parole rimaste</span>
 </div>
 
 <!-- STATUS BAR -->
@@ -403,9 +414,6 @@ input[type="file"] { display: none; }
   <span></span>
   <button class="nav-btn" id="btnNextBot" onclick="next()" disabled>Successivo →</button>
 </div>
-
-<!-- FLOAT PILL -->
-<div id="floatPill">0 parole rimaste</div>
 
 <!-- TOC DRAWER -->
 <div id="tocDrawer">
@@ -762,7 +770,7 @@ function show(i){
 
   applyStyle();
   updateStats();
-  updateFloatPill();
+  updateWordCount();
   window.scrollTo({top:0});
 }
 
@@ -792,23 +800,25 @@ function updateStats(){
 
 
 /* =========================================================
-   FLOAT PILL (parole rimaste nel capitolo)
+   WORD COUNTER IN TOPBAR (aggiornato sullo scroll)
    ========================================================= */
-window.addEventListener("scroll", updateFloatPill);
+window.addEventListener("scroll", updateWordCount);
 
-function updateFloatPill(){
-  const pill = document.getElementById("floatPill");
-  const doc  = document.documentElement;
-  const st   = doc.scrollTop || document.body.scrollTop;
-  const sh   = doc.scrollHeight - doc.clientHeight;
-  const prog = sh > 0 ? st/sh : 0;
-
-  if(prog < 0.03){ pill.classList.remove("visible"); return; }
-  pill.classList.add("visible");
+function updateWordCount(){
+  const el  = document.getElementById("topWordCount");
+  const doc = document.documentElement;
+  const st  = doc.scrollTop || document.body.scrollTop;
+  const sh  = doc.scrollHeight - doc.clientHeight;
+  const prog = sh > 0 ? st / sh : 0;
 
   const total     = chapterWords[current] || 0;
-  const remaining = Math.max(Math.floor(total * (1-prog)), 0);
-  pill.textContent = remaining.toLocaleString() + " parole rimaste";
+  const remaining = Math.max(Math.floor(total * (1 - prog)), 0);
+
+  if(!chapters.length){
+    el.textContent = "— parole rimaste";
+    return;
+  }
+  el.textContent = remaining.toLocaleString() + " parole rimaste";
 }
 
 
